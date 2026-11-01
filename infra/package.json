@@ -1,0 +1,19 @@
+{
+  "name": "@s10/infra",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "synth": "cdk synth --quiet --context env=dev && cdk synth --quiet --context env=prod --output cdk.out/prod",
+    "diff": "cdk diff --context env=dev"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.275.0",
+    "cdk-nag": "^3.0.2",
+    "constructs": "^10.8.1"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.1147.0",
+    "tsx": "^4.23.15"
+  }
+}

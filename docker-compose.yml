@@ -1,0 +1,18 @@
+# Local development only. AWS environments use Aurora Serverless v2 via the RDS Data API.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres # local-only throwaway credential, never used in AWS
+      POSTGRES_DB: s10_marketing
+    ports:
+      - '5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      retries: 10
+volumes:
+  db-data:

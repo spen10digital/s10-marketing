@@ -1,0 +1,22 @@
+{
+  "name": "@s10/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config/params.ts",
+    "./logging": "./src/logging/logger.ts",
+    "./errors": "./src/errors/app-error.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ssm": "^3.1161.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "aws-sdk-client-mock": "^4.1.0"
+  }
+}

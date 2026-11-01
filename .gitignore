@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.vercel/
+supabase/.temp/
+coverage/
+playwright-report/
+cdk.out/
+.aws-sam/
+test-results/
+*.tsbuildinfo
+next-env.d.ts

@@ -1,0 +1,45 @@
+name: deploy-infra
+
+# Manual only. The GitHub environment (dev/prod) must require the owner's approval,
+# and its deploy role trusts only that environment (infra/lib/cicd-stack.ts).
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [dev, prod]
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-infra-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test --project infra
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: cdk deploy
+        working-directory: infra
+        run: >-
+          pnpm exec cdk deploy --all --require-approval never
+          --context env=${{ inputs.environment }}
+          --context githubRepo=${{ github.repository }}
+          --context alertEmail=${{ vars.OPS_ALERT_EMAIL }}

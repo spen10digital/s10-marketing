@@ -1,0 +1,15 @@
+{
+  "app": "npx tsx bin/app.ts",
+  "watch": { "include": ["bin/**", "lib/**"] },
+  "context": {
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/core:defaultCrossStackReferences": "strong",
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true,
+    "@aws-cdk/aws-sns-subscriptions:restrictSqsDescryption": true,
+    "@aws-cdk/aws-kms:aliasNameRef": true,
+    "@aws-cdk/aws-kms:applyImportedAliasPermissionsToPrincipal": true,
+    "@aws-cdk/aws-s3:keepNotificationInImportedBucket": true,
+    "@aws-cdk/core:enablePartitionLiterals": true
+  }
+}

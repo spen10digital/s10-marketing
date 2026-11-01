@@ -1,0 +1,43 @@
+{
+  "name": "s10-marketing",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @s10/web dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --project unit --project infra",
+    "test:db": "vitest run --project db --passWithNoTests",
+    "test:e2e": "pnpm --filter @s10/web test:e2e",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "node -e \"console.error('db:migrate arrives in M1.2 (scripts/db-migrate.ts)'); process.exit(1)\"",
+    "infra:synth": "pnpm --filter @s10/infra synth",
+    "infra:diff": "pnpm --filter @s10/infra diff",
+    "eval:ai": "node -e \"console.error('eval:ai arrives in M1.3'); process.exit(1)\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@next/eslint-plugin-next": "16.4.3",
+    "@types/node": "^24",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^4.1.12"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
