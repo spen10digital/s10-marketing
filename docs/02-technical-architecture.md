@@ -552,3 +552,8 @@ Stripe (separate S10 account) → `POST /api/webhooks/stripe` → `webhook_event
 | 0011 | cdk-nag v3 via CDK Validations + synth-time cost guardrails |
 | 0012 | **Web hosting on Vercel** (Next.js 16, React 19.3, streaming) with OIDC → IAM role; supersedes the Amplify part of 0009 |
 | 0013 | **Workload region us-east-2** to comply with the organization SCP (revises D3) |
+| 0014 | Cognito sessions with our own code + PKCE flow and HTTP-only cookies (no Amplify adapter) |
+| 0015 | Aurora behind the Data API, `app_owner`/`app_rw` roles, forced RLS with narrow definer policies |
+| 0016 | AI budgets reserved before each call under a per-org lock; real cost recorded after |
+| 0017 | Streamed AI output through one NDJSON route with Claude structured outputs |
+| 0018 | Drafts saved unassigned (`posts.target_id = null`) until a Page is chosen |

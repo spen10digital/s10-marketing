@@ -79,3 +79,28 @@
   - Deploys need `--context alertEmail=…`, now noted in the runbook.
 - **GitHub (owner-approved):** auto-merge allowed on the repository. `develop` is protected, with only one rule: the CI `checks` job must pass (no required reviews, admins not restricted).
 - **Roadmap:** M1.3 now includes a **Brand Voice assistant**: draft from website, guided setup, tune suggestions and sample posts, always as proposals saved as a normal new version. The SSRF-safe fetcher moves forward from M2.3.
+
+## 2026-11-03 — M1.3 AI content studio v1 (Bedrock) + Brand Voice assistant
+- **Migration `0002_content_ai`:**
+  - tables `org_entitlements` (read-only for the app), `ai_generations`, `usage_events` (append-only), `content_items`, `posts` and `post_revisions` (append-only), plus the `app.post_status` enum;
+  - RLS enabled and forced on all of them; editors create drafts and generations as themselves; only drafts can be edited; a finished generation can't change; column-level updates; composite foreign keys.
+- **`packages/core/src/ai`:**
+  - `AiGateway` with a `GenerationLedger` (budget reservation under a per-org lock, real cost afterwards, ADR 0016), `ModelRouter` (model IDs from Parameter Store), `BedrockConverseProvider` (ConverseStream, structured JSON output, prompt-cache points, no tools), `FakeAiProvider`, and CloudWatch token/cost metrics;
+  - versioned prompt templates for `generate_post_variants`, `rewrite`, `summarize_article`, `campaign_concepts`, `voice_draft`, `voice_tune`, `voice_samples`; outside text goes in delimited `<untrusted_data>` blocks;
+  - `BrandContextBuilder` (voice in the cached block, recent posts after it for anti-repetition), zod output schemas, Facebook checks (63,206-character limit, long-post warning, avoided phrases, links that weren't provided), price table for Sonnet 5.5 / Haiku 5.5.
+- **`packages/core/src/sources`:** the SSRF-safe fetcher pulled forward from M2.3 (address check inside the socket's DNS lookup, private/loopback/link-local/mapped ranges blocked, ≤3 re-checked redirects, 10 s, 2 MB, ports 80/443, `robots.txt`), plus HTML-to-text and a website reader (home + up to 4 same-site pages).
+- **CDK:**
+  - Core publishes `ai-model-generate`, `ai-model-fast` and `ai-default-monthly-budget-usd`;
+  - the web role may invoke only the two US inference profiles (and their foundation models only through those profiles) and write metrics only to `S10Marketing/AI`.
+- **Web:**
+  - `POST /api/ai/stream` (NDJSON, same-origin JSON only, org from the session; ADR 0017);
+  - **Studio** at `/b/[brandSlug]/studio`: streamed post variants (optionally from an article), Shorten / Expand / Fit for Facebook / Change tone with Haiku, campaign ideas, save as an unassigned draft (ADR 0018), recent drafts, and this month's AI spend;
+  - **Brand Voice assistant** on the brand page: draft from website, guided setup, tune (accept/dismiss each suggestion), try it (sample posts). Output is always a proposal shown against the saved version; saving still creates a normal new version.
+- **Tests:**
+  - unit tests for the gateway, budgets (fake ledger), pricing, JSON schema, partial JSON, Facebook checks, voice suggestions, prompt snapshots, the prompt-injection fixture, and Bedrock request/stream/error mapping with `aws-sdk-client-mock`;
+  - SSRF tests against a local server (private and mapped addresses, mixed DNS answers, redirects into private ranges, redirect loops, size, time, content type, robots.txt);
+  - DB tests for 0002 (isolation, role matrix, draft-only edits, immutable generations, concurrent budget reservations, caps, entitlements). DB test files now run one at a time;
+  - CDK assertions for the Bedrock and metrics permissions and the new parameters; Playwright checks that the Studio needs sign-in and the stream refuses cross-site and signed-out requests.
+- **Scripts:** `pnpm eval:ai --env dev` (manual, costs money): variants, rewrite, samples and the injection fixture against real Bedrock, with tokens and cost.
+- **Not done (owner approval required):** enabling Bedrock model access, checking the org SCP against cross-Region inference, deploying Core + VercelAccess, migrating dev, and the manual check (`docs/runbooks/m1.3-ai-studio.md`).
+
