@@ -34,3 +34,5 @@
 ## 2026-11-03 — Workload region us-east-2 (ADR 0013)
 - CDK bootstrap in us-east-1 was denied by the organization's root SCP, which only allows regional services in us-east-2. Owner chose to follow it rather than loosen the guardrail.
 - Region switched to **us-east-2** in the config schema, web server, CDK environments and CI; Vercel functions moved to `cle1`. Revised D3/D7 and updated CLAUDE.md, 01, 02, 05, 06, runbook and ADR 0012.
+- Dev stacks deployed (owner) and the Vercel preview verified against AWS via OIDC.
+- Hosted deployments (Vercel, Lambda) now refuse to start without `APP_ENV=dev|prod` (`assertDeploymentEnv`, run from `apps/web/src/instrumentation.ts` and `loadConfig`), instead of silently running as `local`. Vercel **Production** needs `APP_ENV=prod` and `AWS_ROLE_ARN` before `main` is deployed.

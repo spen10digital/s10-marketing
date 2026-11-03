@@ -2,7 +2,7 @@ import { GetParametersByPathCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { mockClient } from 'aws-sdk-client-mock';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../errors/app-error';
-import { loadConfig, parameterNameToKey, parseConfig, publicConfig } from './params';
+import { assertDeploymentEnv, loadConfig, parameterNameToKey, parseConfig, publicConfig } from './params';
 
 const ssmMock = mockClient(SSMClient);
 
@@ -48,7 +48,27 @@ describe('parameterNameToKey', () => {
   });
 });
 
+describe('assertDeploymentEnv', () => {
+  it('requires APP_ENV dev or prod on Vercel and Lambda', () => {
+    for (const hosted of [{ VERCEL: '1' }, { AWS_LAMBDA_FUNCTION_NAME: 'publish-worker' }]) {
+      expect(() => assertDeploymentEnv(hosted)).toThrow(AppError);
+      expect(() => assertDeploymentEnv({ ...hosted, APP_ENV: 'local' })).toThrow(AppError);
+      expect(() => assertDeploymentEnv({ ...hosted, APP_ENV: 'dev' })).not.toThrow();
+      expect(() => assertDeploymentEnv({ ...hosted, APP_ENV: 'prod' })).not.toThrow();
+    }
+  });
+
+  it('allows a missing APP_ENV on a developer machine', () => {
+    expect(() => assertDeploymentEnv({})).not.toThrow();
+  });
+});
+
 describe('loadConfig', () => {
+  it('refuses to run as local on a hosted runtime', async () => {
+    await expect(loadConfig({ env: { VERCEL: '1' } })).rejects.toThrow(/APP_ENV must be set/);
+    expect(ssmMock.calls()).toHaveLength(0);
+  });
+
   it('uses only the environment locally (no AWS calls)', async () => {
     const cfg = await loadConfig({ env: { APP_ENV: 'local', DATABASE_URL: 'postgres://localhost/x' } });
     expect(cfg.DATABASE_URL).toBe('postgres://localhost/x');
