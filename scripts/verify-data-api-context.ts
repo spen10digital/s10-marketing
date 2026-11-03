@@ -16,9 +16,16 @@ async function main() {
   const { values } = parseArgs({ options: { env: { type: 'string' } } });
   if (values.env !== 'dev' && values.env !== 'prod') throw new Error('Use --env dev|prod');
   const prefix = `/s10-marketing/${values.env}/`;
-  const page = await new SSMClient({ region: REGION }).send(new GetParametersByPathCommand({ Path: prefix }));
+  const ssm = new SSMClient({ region: REGION });
+  const params = new Map<string, string>();
+  let NextToken: string | undefined;
+  do {
+    const page = await ssm.send(new GetParametersByPathCommand({ Path: prefix, NextToken }));
+    for (const p of page.Parameters ?? []) if (p.Name && p.Value) params.set(p.Name, p.Value);
+    NextToken = page.NextToken;
+  } while (NextToken);
   const param = (name: string) => {
-    const value = page.Parameters?.find((p) => p.Name === `${prefix}${name}`)?.Value;
+    const value = params.get(`${prefix}${name}`);
     if (!value) throw new Error(`Missing parameter ${prefix}${name}`);
     return value;
   };
