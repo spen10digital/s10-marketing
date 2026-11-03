@@ -70,3 +70,12 @@
   - no `@aws-amplify/adapter-nextjs`;
   - a self-serve create-organization flow arrives now instead of in Phase 4.
 - **Not done (owner approval required):** deploying the Database and Identity stacks, running migrations on dev Aurora, `db:verify-context`, and the manual sign-in check (`docs/runbooks/m1.2-database-and-sign-in.md`).
+
+## 2026-11-03 — M1.2 deployed to dev; M1.3 scope extended
+- **Deployed (owner-approved):** the dev Database, Identity and VercelAccess stacks (Aurora PostgreSQL **16.13**; 16.6 is no longer offered). Migration `0001_core_tenancy` is applied, and `db:verify-context` passed on the real Data API: `app_rw`, context persists within a transaction and doesn't leak. The owner checked sign-up → create organization → brands → voice versions on the `develop` alias.
+- **Fixes during deploy:**
+  - `db:verify-context` now pages through Parameter Store results.
+  - `infra/cdk.context.json` is committed so synth always picks the same availability zones.
+  - Deploys need `--context alertEmail=…`, now noted in the runbook.
+- **GitHub (owner-approved):** auto-merge allowed on the repository. `develop` is protected, with only one rule: the CI `checks` job must pass (no required reviews, admins not restricted).
+- **Roadmap:** M1.3 now includes a **Brand Voice assistant**: draft from website, guided setup, tune suggestions and sample posts, always as proposals saved as a normal new version. The SSRF-safe fetcher moves forward from M2.3.
