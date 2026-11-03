@@ -1,6 +1,6 @@
 # 06 — Cost & Launch Plan (AWS-first)
 
-**Prices checked:** 2026-10-28/29 on AWS and vendor pricing pages (links at the end). USD, before tax. The app runs in **us-east-1 (N. Virginia)**, so the US East list prices shown on AWS pages apply directly. *(verify)* = not confirmed on an official page in this pass. Usage numbers are planning assumptions — replace them with real `usage_events` and Cost Explorer data after Phase 2.
+**Prices checked:** 2026-10-28/29 on AWS and vendor pricing pages (links at the end). USD, before tax. The app runs in **us-east-2 (Ohio)**; its list prices match us-east-1 for the services used here *(verify)*. *(verify)* = not confirmed on an official page in this pass. Usage numbers are planning assumptions — replace them with real `usage_events` and Cost Explorer data after Phase 2.
 
 ---
 

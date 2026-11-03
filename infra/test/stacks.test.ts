@@ -242,4 +242,20 @@ describe('resolveEnvConfig', () => {
     expect(() => resolveEnvConfig({ env: 'dev', githubRepo: 'not a repo' })).toThrow();
     expect(() => resolveEnvConfig({ env: 'dev', vercelTeam: 'Not A Slug' })).toThrow();
   });
+
+  it('accepts GitHub immutable OIDC subjects and trusts them exactly', () => {
+    const built = synth({ env: 'dev', githubRepo: 'owner@111/s10-marketing@222' });
+    Template.fromStack(built.cicd!).hasResourceProperties('AWS::IAM::Role', {
+      RoleName: 's10-marketing-dev-github-diff',
+      AssumeRolePolicyDocument: {
+        Statement: [
+          Match.objectLike({
+            Condition: Match.objectLike({
+              StringLike: { 'token.actions.githubusercontent.com:sub': 'repo:owner@111/s10-marketing@222:*' },
+            }),
+          }),
+        ],
+      },
+    });
+  });
 });

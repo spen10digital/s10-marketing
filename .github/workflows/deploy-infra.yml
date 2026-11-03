@@ -35,11 +35,10 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-region: us-east-2
       - name: cdk deploy
         working-directory: infra
         run: >-
           pnpm exec cdk deploy --all --require-approval never
           --context env=${{ inputs.environment }}
-          --context githubRepo=${{ github.repository }}
           --context alertEmail=${{ vars.OPS_ALERT_EMAIL }}

@@ -66,5 +66,5 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_DEV_DIFF_ROLE_ARN }}
-          aws-region: us-east-1
-      - run: pnpm infra:diff
+          aws-region: us-east-2
+      - run: pnpm infra:diff --context alertEmail=${{ vars.OPS_ALERT_EMAIL }}

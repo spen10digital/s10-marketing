@@ -1,6 +1,6 @@
 # ADR 0009: AWS-first platform
 
-- **Status:** Accepted; web hosting part superseded by ADR 0012 (Vercel)
+- **Status:** Accepted; web hosting part superseded by ADR 0012 (Vercel); region set by ADR 0013 (us-east-2)
 - **Date:** 2026-10-29
 - **Source:** docs/02-technical-architecture.md §15
 

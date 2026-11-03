@@ -2,24 +2,24 @@ import { GetParametersByPathCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { mockClient } from 'aws-sdk-client-mock';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../errors/app-error';
-import { loadConfig, parameterNameToKey, parseConfig, publicConfig } from './params';
+import { assertDeploymentEnv, loadConfig, parameterNameToKey, parseConfig, publicConfig } from './params';
 
 const ssmMock = mockClient(SSMClient);
 
 beforeEach(() => ssmMock.reset());
 
 describe('parseConfig', () => {
-  it('applies safe defaults (publishing off, Graph v26.0, us-east-1)', () => {
+  it('applies safe defaults (publishing off, Graph v26.0, us-east-2)', () => {
     const cfg = parseConfig({ APP_ENV: 'local' });
     expect(cfg.PUBLISHING_ENABLED).toBe(false);
     expect(cfg.AUTOMATION_ENABLED).toBe(false);
     expect(cfg.META_GRAPH_VERSION).toBe('v26.0');
-    expect(cfg.AWS_REGION).toBe('us-east-1');
+    expect(cfg.AWS_REGION).toBe('us-east-2');
   });
 
   it('rejects other regions and reports key names without values', () => {
     try {
-      parseConfig({ APP_ENV: 'local', AWS_REGION: 'eu-west-1', APP_URL: 'not a url secret-ish' });
+      parseConfig({ APP_ENV: 'local', AWS_REGION: 'us-east-1', APP_URL: 'not a url secret-ish' });
       expect.unreachable();
     } catch (err) {
       expect(err).toBeInstanceOf(AppError);
@@ -48,7 +48,27 @@ describe('parameterNameToKey', () => {
   });
 });
 
+describe('assertDeploymentEnv', () => {
+  it('requires APP_ENV dev or prod on Vercel and Lambda', () => {
+    for (const hosted of [{ VERCEL: '1' }, { AWS_LAMBDA_FUNCTION_NAME: 'publish-worker' }]) {
+      expect(() => assertDeploymentEnv(hosted)).toThrow(AppError);
+      expect(() => assertDeploymentEnv({ ...hosted, APP_ENV: 'local' })).toThrow(AppError);
+      expect(() => assertDeploymentEnv({ ...hosted, APP_ENV: 'dev' })).not.toThrow();
+      expect(() => assertDeploymentEnv({ ...hosted, APP_ENV: 'prod' })).not.toThrow();
+    }
+  });
+
+  it('allows a missing APP_ENV on a developer machine', () => {
+    expect(() => assertDeploymentEnv({})).not.toThrow();
+  });
+});
+
 describe('loadConfig', () => {
+  it('refuses to run as local on a hosted runtime', async () => {
+    await expect(loadConfig({ env: { VERCEL: '1' } })).rejects.toThrow(/APP_ENV must be set/);
+    expect(ssmMock.calls()).toHaveLength(0);
+  });
+
   it('uses only the environment locally (no AWS calls)', async () => {
     const cfg = await loadConfig({ env: { APP_ENV: 'local', DATABASE_URL: 'postgres://localhost/x' } });
     expect(cfg.DATABASE_URL).toBe('postgres://localhost/x');
@@ -72,7 +92,7 @@ describe('loadConfig', () => {
 
     const cfg = await loadConfig({
       env: { APP_ENV: 'dev', LOG_LEVEL: 'warn' },
-      ssm: new SSMClient({ region: 'us-east-1' }),
+      ssm: new SSMClient({ region: 'us-east-2' }),
     });
     expect(cfg.APP_URL).toBe('https://dev.example.com');
     expect(cfg.PUBLISHING_ENABLED).toBe(true);

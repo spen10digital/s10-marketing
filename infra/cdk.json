@@ -1,6 +1,8 @@
 {
   "app": "npx tsx bin/app.ts",
-  "watch": { "include": ["bin/**", "lib/**"] },
+  "watch": {
+    "include": ["bin/**", "lib/**"]
+  },
   "context": {
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:defaultCrossStackReferences": "strong",
@@ -10,6 +12,8 @@
     "@aws-cdk/aws-kms:aliasNameRef": true,
     "@aws-cdk/aws-kms:applyImportedAliasPermissionsToPrincipal": true,
     "@aws-cdk/aws-s3:keepNotificationInImportedBucket": true,
-    "@aws-cdk/core:enablePartitionLiterals": true
+    "@aws-cdk/core:enablePartitionLiterals": true,
+    "vercelTeam": "spen-10-digital",
+    "githubRepo": "spen10digital@242043182/s10-marketing@1442309762"
   }
 }

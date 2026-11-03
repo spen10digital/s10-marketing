@@ -2,8 +2,8 @@ export type EnvName = 'dev' | 'prod';
 
 export interface EnvConfig {
   envName: EnvName;
-  /** All accounts run in us-east-1 (D3). */
-  region: 'us-east-1';
+  /** All workloads run in us-east-2, the organization's workload region (D3, ADR 0013). */
+  region: 'us-east-2';
   /** Monthly cost budget with alerts at each threshold (USD, actual spend). */
   budgetThresholdsUsd: number[];
   /** Vercel project name (OIDC subject claim). */
@@ -12,12 +12,16 @@ export interface EnvConfig {
   vercelTeam?: string;
   /** Optional: owner's alert email, passed with `--context alertEmail=...`. */
   alertEmail?: string;
-  /** Optional: `owner/repo` on GitHub, passed with `--context githubRepo=...` (D1). */
+  /**
+   * Optional: the GitHub repo as it appears in the Actions OIDC subject (D1). Repos using
+   * GitHub's immutable subject format need `owner@ownerId/repo@repoId` (see `gh api
+   * repos/<owner>/<repo>/actions/oidc/customization/sub`); older ones use `owner/repo`.
+   */
   githubRepo?: string;
 }
 
 const base = {
-  region: 'us-east-1',
+  region: 'us-east-2',
   budgetThresholdsUsd: [25, 75, 150],
   vercelProject: 's10-marketing',
 } as const;
@@ -40,8 +44,8 @@ export function resolveEnvConfig(context: {
     throw new Error(`Unknown env "${String(envName)}"; use --context env=dev|prod`);
   }
   const githubRepo = optionalString(context.githubRepo);
-  if (githubRepo && !/^[\w.-]+\/[\w.-]+$/.test(githubRepo)) {
-    throw new Error('githubRepo must look like "owner/repo"');
+  if (githubRepo && !/^[\w.-]+(@\d+)?\/[\w.-]+(@\d+)?$/.test(githubRepo)) {
+    throw new Error('githubRepo must look like "owner/repo" or "owner@ownerId/repo@repoId"');
   }
   const vercelTeam = optionalString(context.vercelTeam);
   if (vercelTeam && !/^[a-z0-9][a-z0-9-]*$/.test(vercelTeam)) {

@@ -10,7 +10,8 @@ export interface CicdStackProps extends StackProps {
 /**
  * GitHub Actions → AWS through OIDC (no stored keys). The diff role can be used from any
  * ref of the repo; the deploy role only from the protected GitHub environment of the same
- * name (`dev` / `prod`), which requires owner approval (05 §8).
+ * name (`dev` / `prod`), which requires owner approval (05 §8). `githubRepo` must match the
+ * repo part of the token's `sub` claim exactly, including immutable IDs when GitHub uses them.
  */
 export class CicdStack extends Stack {
   constructor(scope: Construct, id: string, props: CicdStackProps) {

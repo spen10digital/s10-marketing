@@ -5,7 +5,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "synth": "cdk synth --quiet --context env=dev && cdk synth --quiet --context env=prod --output cdk.out/prod",
-    "diff": "cdk diff --context env=dev"
+    "diff": "cdk diff --method=template --context env=dev"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.275.0",

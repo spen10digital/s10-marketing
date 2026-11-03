@@ -21,8 +21,8 @@
 ## 2. High-level architecture
 
 ```
-                         ┌──────────── AWS account: s10-marketing-{dev|prod} · region us-east-1 ────────────┐
- Browser ──HTTPS──▶  Vercel (Next.js 16 SSR + streaming, iad1; outside AWS) ── OIDC → IAM web role     │
+                         ┌──────────── AWS account: s10-marketing-{dev|prod} · region us-east-2 ────────────┐
+ Browser ──HTTPS──▶  Vercel (Next.js 16 SSR + streaming, cle1; outside AWS) ── OIDC → IAM web role     │
  (desktop/mobile)      • UI + Server Actions + Route Handlers                                              │
         │              • compute role (IAM) ─┬─▶ RDS Data API ──▶ Aurora PostgreSQL Serverless v2 (0–N ACU)│
         │                                    ├─▶ Bedrock (Claude via Converse API)                         │
@@ -45,7 +45,7 @@
 
 | Concern | AWS service | Notes / why |
 |---|---|---|
-| Web hosting | **Vercel Pro** (owner decision 2026-11-01, ADR 0012) | Git-based deploys and previews per branch, latest Next.js (16) and React (19.3) with **streaming** (used for AI output). Functions run in `iad1` (Washington, D.C.) next to us-east-1. Server code gets AWS credentials through **Vercel OIDC federation** to an IAM role (`VercelAccessStack`) — no access keys. Pro plan required for commercial use. |
+| Web hosting | **Vercel Pro** (owner decision 2026-11-01, ADR 0012) | Git-based deploys and previews per branch, latest Next.js (16) and React (19.3) with **streaming** (used for AI output). Functions run in `cle1` (Cleveland) next to us-east-2. Server code gets AWS credentials through **Vercel OIDC federation** to an IAM role (`VercelAccessStack`) — no access keys. Pro plan required for commercial use. |
 | Database | **Aurora PostgreSQL Serverless v2** with **RDS Data API** | Postgres keeps the relational model and RLS. Serverless v2 can **scale to 0 ACU** (auto-pause after ≥5 min idle; ~15 s resume). Data API = HTTPS + IAM, so Vercel functions and Lambda need no VPC, no connection pooling, no RDS Proxy (which would block auto-pause). |
 | Auth | **Amazon Cognito user pool** (Essentials tier) | Managed login, email/password, passwordless email codes, passkeys, TOTP MFA; 10,000 MAU free (Lite/Essentials). Future S10/Suite identity hub (§3.4). |
 | Scheduling | **EventBridge Scheduler** | One-time `at()` schedule per scheduled post (time-zone aware, delete-after-completion) + recurring `rate()` schedules for sweeper and feed polling. 14M invocations/month free. |
@@ -53,7 +53,7 @@
 | Workers | **AWS Lambda** (Node.js, arm64) | publish-worker, sweeper, feed-poller, ingest, media-processor, notifier, retention. |
 | AI | **Amazon Bedrock** (Claude Sonnet 5.5 for generation / Haiku 5.5 for quick edits — best price/performance — via US cross-Region inference profiles; Converse API, streamed to the browser) | Billed on the AWS invoice; IAM auth (no API keys); Converse API gives one interface across Bedrock models. Images later via a Bedrock image model (e.g. Amazon Nova Canvas). |
 | Media | **S3** (private, versioned) | Browser uploads via presigned PUT; Meta fetches via short-lived presigned GET. |
-| Email | **Amazon SES** (us-east-1) | Approval requests, failure alerts, digests. Send from a dedicated subdomain (e.g. `notify.spen10.com`) verified in the S10/Marketing prod account, so its reputation is separate from S10/Mail's. |
+| Email | **Amazon SES** (us-east-2) | Approval requests, failure alerts, digests. Send from a dedicated subdomain (e.g. `notify.spen10.com`) verified in the S10/Marketing prod account, so its reputation is separate from S10/Mail's. |
 | Secrets | **Secrets Manager** (Meta app secret, DB credentials for Data API) + **SSM Parameter Store** (non-secret config) | Read at runtime via IAM; never in env vars or code. |
 | Token encryption | **AWS KMS** customer managed key | `Encrypt` with an encryption context bound to the tenant; only workers may `Decrypt`. |
 | Monitoring | **CloudWatch** Logs/Metrics/Alarms (+ optional X-Ray) + **SNS** | Replaces Sentry; alarms to email/SMS. |
@@ -73,7 +73,7 @@ Next.js 16 (App Router) + React 19.3 + TypeScript strict · Tailwind + shadcn/ui
 | Item | Recommendation |
 |---|---|
 | AWS Organization | **Decided:** one organization; management account (billing + Identity Center only) → `s10-marketing-dev`, `s10-marketing-prod`; existing S10/Mail account joins the same organization (or already is the management account — move its workloads out of the management account over time); optional `s10-shared` later for S10 Identity |
-| Region | **us-east-1 (N. Virginia)** — owner's choice; matches S10/Mail's SES Region. Bedrock US geo inference profiles, SES, Aurora Serverless v2 and Cognito are all available, and ACM certificates for Cognito managed login custom domains must live in us-east-1 anyway. Vercel functions run in `iad1`, the closest Vercel region. |
+| Region | **us-east-2 (Ohio)** for all workloads (owner decision 2026-11-03, ADR 0013). The organization's root SCP allows regional services only in us-east-2; us-east-1 is limited to global services (IAM, STS, KMS, ACM, Budgets, Cost Explorer, Route 53, CloudFront, Logs), which still covers the ACM certificate a Cognito managed-login custom domain needs. Bedrock US inference profiles, SES, Aurora Serverless v2 + Data API and Cognito are available in us-east-2. Vercel functions run in `cle1` (Cleveland), the closest Vercel region. |
 | Environments | `local` (Docker Postgres + dev AWS account for Bedrock/SQS/S3) · `dev` (Vercel preview deployments incl. `develop`, dev AWS account, publishing disabled) · `prod` (Vercel production from `main`, prod AWS account) |
 | Cost guardrails | AWS Budgets alerts, Cost Anomaly Detection, Bedrock usage alarms |
 
@@ -351,7 +351,7 @@ ContentStudioService.generate(brandId, request)
 ```
 
 - **Bedrock Converse API** is the abstraction: switching between Claude, Amazon Nova or another Bedrock model is a model-ID change in Parameter Store.
-- Defaults: **`us.anthropic.claude-sonnet-5-5`** (cross-Region inference profile, callable from us-east-1) for generation; the Haiku 5.5 equivalent for rewrites/summaries (confirm its profile ID in the Bedrock console).
+- Defaults: **`us.anthropic.claude-sonnet-5-5`** (cross-Region inference profile, callable from us-east-2) for generation; the Haiku 5.5 equivalent for rewrites/summaries (confirm its profile ID in the Bedrock console).
 - Structured output and explicit prompt caching (brand-context block) are supported for Sonnet 5.5 on `bedrock-runtime`. The Bedrock model card lists **Batch as not supported** for Sonnet 5.5 — don't plan on batch discounts there.
 - **Stream** generation to the Studio (Vercel supports streaming) so drafts appear as they are written; validate the structured result once the stream completes. Long calls need a Vercel function `maxDuration` that covers them.
 - Guardrails: external text in delimited data blocks; the model has no action tools; per-org budgets and per-day caps enforced before calls; optional **Bedrock Guardrails** for content filters; CloudWatch alarm on Bedrock spend.
@@ -551,3 +551,4 @@ Stripe (separate S10 account) → `POST /api/webhooks/stripe` → `webhook_event
 | 0010 | No VPC networking for app components (Data API + IAM over HTTPS) |
 | 0011 | cdk-nag v3 via CDK Validations + synth-time cost guardrails |
 | 0012 | **Web hosting on Vercel** (Next.js 16, React 19.3, streaming) with OIDC → IAM role; supersedes the Amplify part of 0009 |
+| 0013 | **Workload region us-east-2** to comply with the organization SCP (revises D3) |

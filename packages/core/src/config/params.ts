@@ -15,7 +15,7 @@ const bool = z
 
 export const configSchema = z.object({
   APP_ENV: z.enum(['local', 'dev', 'prod']),
-  AWS_REGION: z.literal('us-east-1').default('us-east-1'),
+  AWS_REGION: z.literal('us-east-2').default('us-east-2'),
   APP_URL: z.url().default('http://localhost:3000'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
@@ -102,16 +102,32 @@ export interface LoadConfigOptions {
   ssm?: SSMClient;
 }
 
+/** True on Vercel and AWS Lambda, where `local` would silently skip Parameter Store. */
+export function isHostedRuntime(env: RawConfig): boolean {
+  return Boolean(env.VERCEL || env.AWS_LAMBDA_FUNCTION_NAME);
+}
+
+/**
+ * Fails fast when a hosted deployment has no usable APP_ENV, instead of quietly running as
+ * `local`. Called at server start (apps/web instrumentation) and by `loadConfig`.
+ */
+export function assertDeploymentEnv(env: RawConfig = process.env): void {
+  if (isHostedRuntime(env) && env.APP_ENV !== 'dev' && env.APP_ENV !== 'prod') {
+    throw new AppError('CONFIG_INVALID', 'APP_ENV must be set to "dev" or "prod" on hosted deployments');
+  }
+}
+
 /**
  * Local: environment only. dev/prod: Parameter Store values, with the process environment
- * (APP_ENV, AWS_REGION and anything Amplify/Lambda sets) taking precedence.
+ * (APP_ENV, AWS_REGION and anything Vercel/Lambda sets) taking precedence.
  */
 export async function loadConfig(options: LoadConfigOptions = {}): Promise<AppConfig> {
   const env = options.env ?? process.env;
+  assertDeploymentEnv(env);
   const appEnv = env.APP_ENV ?? 'local';
   if (appEnv !== 'dev' && appEnv !== 'prod') return parseConfig({ ...env, APP_ENV: appEnv });
 
-  const ssm = options.ssm ?? new SSMClient({ region: env.AWS_REGION ?? 'us-east-1' });
+  const ssm = options.ssm ?? new SSMClient({ region: env.AWS_REGION ?? 'us-east-2' });
   const params = await readParameters(ssm, parameterPrefix(appEnv));
   return parseConfig({ ...params, ...definedOnly(env), APP_ENV: appEnv });
 }
