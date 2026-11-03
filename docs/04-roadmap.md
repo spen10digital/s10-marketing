@@ -64,6 +64,7 @@ Phase 5  ░░░░░░░░ Expansion (ongoing)
 - **Acceptance:** sign-up/sign-in/sign-out/reset via managed login; RLS tests prove cross-org isolation for every table; first request after Aurora pause succeeds (with retry) within ~20 s; voice edits version; audit entries.
 - **Tests:** RLS tests (local Postgres as `app_rw`), context tests, JWT verification tests, E2E sign in → create brand (dev).
 - **Security:** `force row level security`; app never connects as `app_owner`; Cognito MFA available; JWT audience/issuer checks.
+- **As built (2026-11-03):** no seed data. Users sign up and create their own organizations (owner's request); the user row is created at first sign-in instead of by a Post Confirmation Lambda; sessions use our own code + PKCE flow instead of the Amplify adapter (ADR 0014, ADR 0015).
 
 ### M1.3 AI content studio v1 (Bedrock)
 - **Goal:** on-brand drafts and transforms.

@@ -7,16 +7,24 @@
     ".": "./src/index.ts",
     "./config": "./src/config/params.ts",
     "./logging": "./src/logging/logger.ts",
-    "./errors": "./src/errors/app-error.ts"
+    "./errors": "./src/errors/app-error.ts",
+    "./db": "./src/db/index.ts",
+    "./domain": "./src/domain/index.ts",
+    "./auth": "./src/auth/oauth.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@aws-sdk/client-rds-data": "^3.1161.0",
+    "@aws-sdk/client-secrets-manager": "^3.1161.0",
     "@aws-sdk/client-ssm": "^3.1161.0",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@types/pg": "^8.23.1",
     "aws-sdk-client-mock": "^4.1.0"
   }
 }

@@ -25,7 +25,9 @@ const dev = synth({
 });
 const prod = synth({ env: 'prod', vercelTeam: 'spen10' });
 const stacks = (b: ReturnType<typeof synth>): Stack[] =>
-  [b.core, b.observability, b.vercel, b.cicd].filter((s): s is NonNullable<typeof s> => !!s);
+  [b.core, b.observability, b.database, b.identity, b.vercel, b.cicd].filter(
+    (s): s is NonNullable<typeof s> => !!s,
+  );
 
 describe.each([
   ['dev', dev],
@@ -39,12 +41,14 @@ describe.each([
     },
   );
 
-  it('never creates NAT gateways, RDS Proxy or VPCs', () => {
+  it('never creates NAT gateways, RDS Proxy, internet gateways, or VPCs outside the Database stack', () => {
     for (const stack of stacks(built)) {
       const t = Template.fromStack(stack);
       t.resourceCountIs('AWS::EC2::NatGateway', 0);
       t.resourceCountIs('AWS::RDS::DBProxy', 0);
-      t.resourceCountIs('AWS::EC2::VPC', 0);
+      t.resourceCountIs('AWS::EC2::InternetGateway', 0);
+      // Aurora requires a VPC; it is the only one, with isolated subnets (ADR 0015).
+      t.resourceCountIs('AWS::EC2::VPC', stack === built.database ? 1 : 0);
     }
   });
 
@@ -196,7 +200,7 @@ describe('VercelAccessStack', () => {
   it('lets the web role read only its own environment’s parameters', () => {
     t.hasResourceProperties('AWS::IAM::Policy', {
       PolicyDocument: {
-        Statement: [
+        Statement: Match.arrayWith([
           Match.objectLike({
             Action: ['ssm:GetParametersByPath', 'ssm:GetParameter', 'ssm:GetParameters'],
             Resource: Match.arrayWith([
@@ -205,8 +209,114 @@ describe('VercelAccessStack', () => {
               }),
             ]),
           }),
-        ],
+        ]),
       },
+    });
+  });
+
+  it('gives the web role the Data API on its cluster with the app_rw secret only', () => {
+    const statements = Object.values(t.findResources('AWS::IAM::Policy')).flatMap(
+      (p) => p.Properties.PolicyDocument.Statement as { Sid?: string; Action: unknown; Resource: unknown }[],
+    );
+    const dataApi = statements.find((s) => s.Sid === 'DataApi')!;
+    expect(JSON.stringify(dataApi.Resource)).toContain(':cluster:');
+    const secret = statements.find((s) => s.Sid === 'DataApiAppRwSecret')!;
+    expect(secret.Action).toBe('secretsmanager:GetSecretValue');
+    expect(JSON.stringify(secret.Resource)).toContain('AppRwSecret');
+    expect(JSON.stringify(statements)).not.toMatch(/ClusterSecret|app-owner/);
+  });
+});
+
+describe('DatabaseStack', () => {
+  const t = Template.fromStack(dev.database);
+
+  it('is Aurora PostgreSQL Serverless v2 that can pause, with the Data API on and storage encrypted', () => {
+    t.hasResourceProperties('AWS::RDS::DBCluster', {
+      Engine: 'aurora-postgresql',
+      EnableHttpEndpoint: true,
+      StorageEncrypted: true,
+      ServerlessV2ScalingConfiguration: { MinCapacity: 0, MaxCapacity: 4, SecondsUntilAutoPause: 600 },
+      MasterUsername: 'app_owner',
+    });
+    t.hasResourceProperties('AWS::RDS::DBInstance', {
+      DBInstanceClass: 'db.serverless',
+      PubliclyAccessible: false,
+    });
+  });
+
+  it('protects prod from deletion', () => {
+    t.hasResourceProperties('AWS::RDS::DBCluster', { DeletionProtection: false });
+    Template.fromStack(prod.database).hasResourceProperties('AWS::RDS::DBCluster', {
+      DeletionProtection: true,
+    });
+  });
+
+  it('uses isolated subnets and a security group with no inbound rules', () => {
+    t.resourceCountIs('AWS::EC2::InternetGateway', 0);
+    for (const subnet of Object.values(t.findResources('AWS::EC2::Subnet'))) {
+      expect(subnet.Properties.MapPublicIpOnLaunch).toBe(false);
+    }
+    t.resourceCountIs('AWS::EC2::SecurityGroupIngress', 0);
+    for (const sg of Object.values(t.findResources('AWS::EC2::SecurityGroup'))) {
+      expect(sg.Properties.SecurityGroupIngress ?? []).toEqual([]);
+    }
+  });
+
+  it('creates a separate app_rw secret and publishes Data API identifiers', () => {
+    t.hasResourceProperties('AWS::SecretsManager::Secret', {
+      Name: 's10-marketing-dev/db/app-rw',
+      GenerateSecretString: Match.objectLike({
+        SecretStringTemplate: Match.stringLikeRegexp('"username":"app_rw"'),
+      }),
+    });
+    for (const name of ['db-cluster-arn', 'db-secret-arn', 'db-owner-secret-arn', 'db-name']) {
+      t.hasResourceProperties('AWS::SSM::Parameter', { Name: `/s10-marketing/dev/${name}` });
+    }
+  });
+});
+
+describe('IdentityStack', () => {
+  const t = Template.fromStack(dev.identity!);
+
+  it('is only created when app URLs are configured', () => {
+    expect(dev.identity).toBeDefined();
+    expect(prod.identity).toBeUndefined();
+    expect(synth({ env: 'prod', appUrls: 'https://marketing.example.com' }).identity).toBeDefined();
+  });
+
+  it('is the s10-identity pool on Essentials with optional TOTP MFA, retained on delete', () => {
+    t.hasResourceProperties('AWS::Cognito::UserPool', {
+      UserPoolName: 's10-identity-dev',
+      UserPoolTier: 'ESSENTIALS',
+      MfaConfiguration: 'OPTIONAL',
+      EnabledMfas: ['SOFTWARE_TOKEN_MFA'],
+      UsernameAttributes: ['email'],
+      AutoVerifiedAttributes: ['email'],
+    });
+    t.hasResource('AWS::Cognito::UserPool', { DeletionPolicy: 'Retain' });
+  });
+
+  it('has a public PKCE client limited to the code flow and the configured URLs', () => {
+    t.hasResourceProperties('AWS::Cognito::UserPoolClient', {
+      GenerateSecret: false,
+      AllowedOAuthFlows: ['code'],
+      AllowedOAuthFlowsUserPoolClient: true,
+      AllowedOAuthScopes: ['openid', 'email', 'profile'],
+      CallbackURLs: [
+        'https://s10-marketing-git-develop-spen-10-digital.vercel.app/api/auth/callback',
+        'http://localhost:3000/api/auth/callback',
+      ],
+      LogoutURLs: [
+        'https://s10-marketing-git-develop-spen-10-digital.vercel.app/signed-out',
+        'http://localhost:3000/signed-out',
+      ],
+      SupportedIdentityProviders: ['COGNITO'],
+      PreventUserExistenceErrors: 'ENABLED',
+      EnableTokenRevocation: true,
+    });
+    t.hasResourceProperties('AWS::Cognito::UserPoolDomain', {
+      Domain: 's10-identity-dev',
+      ManagedLoginVersion: 2,
     });
   });
 });
@@ -239,6 +349,8 @@ describe('CicdStack', () => {
 describe('resolveEnvConfig', () => {
   it('rejects unknown environments and malformed repos', () => {
     expect(() => resolveEnvConfig({ env: 'staging' })).toThrow();
+    expect(() => resolveEnvConfig({ env: 'prod', appUrls: 'http://example.com' })).toThrow();
+    expect(() => resolveEnvConfig({ env: 'prod', appUrls: 'https://example.com/path' })).toThrow();
     expect(() => resolveEnvConfig({ env: 'dev', githubRepo: 'not a repo' })).toThrow();
     expect(() => resolveEnvConfig({ env: 'dev', vercelTeam: 'Not A Slug' })).toThrow();
   });
