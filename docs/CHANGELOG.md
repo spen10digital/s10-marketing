@@ -30,3 +30,7 @@
 - Web server code gets AWS credentials via `@vercel/functions/oidc` (`AWS_ROLE_ARN`); no access keys. Added `apps/web/vercel.json` (region `iad1`); removed `amplify.yml`.
 - AI models: Claude Sonnet 5.5 (generation) and Claude Haiku 5.5 (quick edits) on Bedrock, chosen for price/performance; Studio output will be streamed (M1.3).
 - Updated CLAUDE.md, 01, 02, 04, 05, 06, README, config inventory and the first-deploy runbook. Phase 1 cost estimate rises by about $20/month (Vercel Pro).
+
+## 2026-11-03 — Workload region us-east-2 (ADR 0013)
+- CDK bootstrap in us-east-1 was denied by the organization's root SCP, which only allows regional services in us-east-2. Owner chose to follow it rather than loosen the guardrail.
+- Region switched to **us-east-2** in the config schema, web server, CDK environments and CI; Vercel functions moved to `cle1`. Revised D3/D7 and updated CLAUDE.md, 01, 02, 05, 06, runbook and ADR 0012.

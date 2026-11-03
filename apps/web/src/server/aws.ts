@@ -14,4 +14,4 @@ export function awsCredentials(): AwsCredentialIdentityProvider | undefined {
   return awsCredentialsProvider({ roleArn, roleSessionName: 's10-marketing-web' });
 }
 
-export const AWS_REGION = 'us-east-1';
+export const AWS_REGION = 'us-east-2';

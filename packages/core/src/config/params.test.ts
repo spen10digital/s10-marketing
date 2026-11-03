@@ -9,17 +9,17 @@ const ssmMock = mockClient(SSMClient);
 beforeEach(() => ssmMock.reset());
 
 describe('parseConfig', () => {
-  it('applies safe defaults (publishing off, Graph v26.0, us-east-1)', () => {
+  it('applies safe defaults (publishing off, Graph v26.0, us-east-2)', () => {
     const cfg = parseConfig({ APP_ENV: 'local' });
     expect(cfg.PUBLISHING_ENABLED).toBe(false);
     expect(cfg.AUTOMATION_ENABLED).toBe(false);
     expect(cfg.META_GRAPH_VERSION).toBe('v26.0');
-    expect(cfg.AWS_REGION).toBe('us-east-1');
+    expect(cfg.AWS_REGION).toBe('us-east-2');
   });
 
   it('rejects other regions and reports key names without values', () => {
     try {
-      parseConfig({ APP_ENV: 'local', AWS_REGION: 'eu-west-1', APP_URL: 'not a url secret-ish' });
+      parseConfig({ APP_ENV: 'local', AWS_REGION: 'us-east-1', APP_URL: 'not a url secret-ish' });
       expect.unreachable();
     } catch (err) {
       expect(err).toBeInstanceOf(AppError);
@@ -72,7 +72,7 @@ describe('loadConfig', () => {
 
     const cfg = await loadConfig({
       env: { APP_ENV: 'dev', LOG_LEVEL: 'warn' },
-      ssm: new SSMClient({ region: 'us-east-1' }),
+      ssm: new SSMClient({ region: 'us-east-2' }),
     });
     expect(cfg.APP_URL).toBe('https://dev.example.com');
     expect(cfg.PUBLISHING_ENABLED).toBe(true);

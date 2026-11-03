@@ -2,8 +2,8 @@ export type EnvName = 'dev' | 'prod';
 
 export interface EnvConfig {
   envName: EnvName;
-  /** All accounts run in us-east-1 (D3). */
-  region: 'us-east-1';
+  /** All workloads run in us-east-2, the organization's workload region (D3, ADR 0013). */
+  region: 'us-east-2';
   /** Monthly cost budget with alerts at each threshold (USD, actual spend). */
   budgetThresholdsUsd: number[];
   /** Vercel project name (OIDC subject claim). */
@@ -17,7 +17,7 @@ export interface EnvConfig {
 }
 
 const base = {
-  region: 'us-east-1',
+  region: 'us-east-2',
   budgetThresholdsUsd: [25, 75, 150],
   vercelProject: 's10-marketing',
 } as const;

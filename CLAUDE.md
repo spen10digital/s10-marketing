@@ -10,8 +10,8 @@ Use AWS services wherever AWS offers one, except web hosting, which is on **Verc
 
 | Need | Use |
 |---|---|
-| Region | **us-east-1** (all accounts) |
-| Web hosting | Vercel Pro — **Next.js 16** + React 19.3 (streaming allowed; Node.js runtime for anything calling AWS); region `iad1`; AWS access via Vercel OIDC → IAM role (ADR 0012) |
+| Region | **us-east-2** for all workloads (org SCP: us-east-1 is limited to global services such as IAM, ACM, Budgets; ADR 0013) |
+| Web hosting | Vercel Pro — **Next.js 16** + React 19.3 (streaming allowed; Node.js runtime for anything calling AWS); region `cle1`; AWS access via Vercel OIDC → IAM role (ADR 0012) |
 | Database | Aurora PostgreSQL Serverless v2 via **RDS Data API** (Drizzle `aws-data-api` driver); Docker Postgres locally |
 | Auth | Cognito user pool "s10-identity" (managed login) + `aws-jwt-verify` |
 | Jobs | EventBridge Scheduler → SQS → Lambda; sweeper Lambda every 15 min |

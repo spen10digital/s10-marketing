@@ -75,7 +75,7 @@ Outside the repos (owner, in browser — Claude cannot see these):
 
 8. Supabase / Vercel dashboards (context only — S10/Marketing won't use them): plans in use, so the overall S10 cost picture is complete.
 9. Domain for the app and for Cognito managed login (e.g. `app.spen10.com`, `auth.spen10.com`) and who controls DNS (Route 53 or elsewhere).
-10. AWS (now central to this project): which account(s) exist and who is root; whether **AWS Organizations** and **IAM Identity Center** are set up; any long-lived IAM user access keys on the dev machine (plan to replace with SSO); which Region SES uses and whether it is out of the sandbox; Bedrock model access enabled in us-east-1?; AWS Budgets/billing alerts set?; account age (eligibility for Free Tier credits).
+10. AWS (now central to this project): which account(s) exist and who is root; whether **AWS Organizations** and **IAM Identity Center** are set up; any long-lived IAM user access keys on the dev machine (plan to replace with SSO); which Region SES uses and whether it is out of the sandbox; Bedrock model access enabled in us-east-2?; AWS Budgets/billing alerts set?; account age (eligibility for Free Tier credits).
 11. Stripe: which account LimitKeep uses; whether a separate account exists for S10.
 12. Meta: does a Meta developer account exist? Any Meta apps? Which **Business portfolio(s)** exist (Business Manager)? Is the business **verified**? Who has **full control** of each Facebook Page (Loot Goblin Labs, SPEN10, LimitKeep, S10/Mail)?
 13. Domains/DNS: where `spen10.com` DNS is hosted; the desired subdomain for this app.
@@ -107,10 +107,10 @@ Do **not** create a shared npm package or monorepo across these products in Phas
 | AWS Organizations + accounts `s10-marketing-dev` / `s10-marketing-prod` | M1.1 | Free; billing stays consolidated in the management account |
 | IAM Identity Center users/permission sets | M1.1 | Short-lived SSO credentials for the owner and Claude Code; no IAM access keys |
 | GitHub → AWS OIDC deploy roles | M1.1 | CI deploys without stored AWS keys |
-| CDK bootstrap (us-east-1) in both accounts | M1.1 | Owner-approved |
+| CDK bootstrap (us-east-2) in both accounts | M1.1 | Owner-approved |
 | Vercel Pro project connected to the GitHub repo | M1.1 | Previews → dev AWS account, `main` → prod; OIDC issuer mode Team |
 | Aurora PostgreSQL Serverless v2 cluster with Data API | M1.2 | Via CDK; min 0 ACU (auto-pause) internally |
-| Cognito user pool "s10-identity" + managed-login domain | M1.2 | Via CDK; custom domain needs an ACM certificate in us-east-1 — same Region as the app |
+| Cognito user pool "s10-identity" + managed-login domain | M1.2 | Via CDK; custom domain needs an ACM certificate in us-east-1 (allowed by the org SCP; ACM is a global-services exception) |
 | Bedrock model access (Claude Sonnet/Haiku) in both accounts | M1.3 | Enable in the Bedrock console; check token-per-minute quotas |
 | Meta developer account | M0.2 | Owner's personal Facebook account registered as developer |
 | **Meta Business portfolio: SPEN10** (managed in Meta Business Suite) | M0.2 | Owns the Meta app; later used for business verification and Tech Provider verification. Owner must be a portfolio admin |
@@ -118,7 +118,7 @@ Do **not** create a shared npm package or monorepo across these products in Phas
 | Full control (or at least content-creation task) on each Facebook Page | M1.4 | Required to obtain Page tokens |
 | KMS customer managed key for social tokens | M1.4 | Via CDK; rotation enabled |
 | Meta app secret in Secrets Manager | M1.4 | Entered manually by the owner, never in Git |
-| SES verified subdomain (e.g. `notify.spen10.com`, DKIM) in us-east-1 in the prod account + production access | M2.4 | For approval and failure notifications |
+| SES verified subdomain (e.g. `notify.spen10.com`, DKIM) in us-east-2 in the prod account + production access | M2.4 | For approval and failure notifications |
 | SNS ops-alert topic subscriptions (email + SMS) | M3.1 | CloudWatch alarms |
 | Stripe account for S10 (separate from LimitKeep) | M4.2 | Strongly recommended to keep LimitKeep financially separate |
 | Meta business verification + Tech Provider access verification + App Review | M4.3 | Only required to serve **other** businesses' Pages |
@@ -137,7 +137,7 @@ Do **not** create a shared npm package or monorepo across these products in Phas
 | R6 | Runaway AI or automation costs | Unexpected bills | Per-org monthly AI budget, per-rule caps, provider-side spend limits, kill switch. |
 | R7 | AWS complexity/cost surprises (NAT gateways, idle resources, log retention, Bedrock spend) | Unexpected bills, slower delivery | No-VPC design, CDK + cdk-nag rules, AWS Budgets + Cost Anomaly Detection, Aurora max ACU cap. |
 | R11 | Aurora auto-pause cold starts (~15 s) | Slow first page load | Acceptable internally; set min 0.5 ACU before customers. |
-| R12 | Web tier on Vercel, backend on AWS | Two vendors; cross-cloud latency | Functions in `iad1` next to us-east-1; OIDC (no keys); exit path to Amplify/OpenNext without touching AWS resources. |
+| R12 | Web tier on Vercel, backend on AWS | Two vendors; cross-cloud latency | Functions in `cle1` next to us-east-2; OIDC (no keys); exit path to Amplify/OpenNext without touching AWS resources. |
 | R8 | Meta API changes (versions, deprecated insights metrics) | Breakage, broken analytics promises | Pin Graph API version; quarterly upgrade task; only promise metrics verified in 03. |
 | R9 | LimitKeep data or identity leaking into S10/Suite | Business separation violated | LimitKeep is a separate org in S10/Marketing; no shared auth/billing; documented in ADR. |
 | R10 | Solo-developer operational load | Missed failures | Dead-man's-switch monitoring, failure emails, runbooks, small surface area. |
@@ -153,11 +153,11 @@ Each has a recommended default so work can proceed if no answer is given. Claude
 | D1 | Repository name and GitHub owner | `s10-marketing` under the owner's account, private |
 | D2 ✅ | AWS account structure | **Decided (owner):** separate `s10-marketing-dev` and `s10-marketing-prod` accounts under the same AWS Organization |
 | D2b ✅ | Sign-in method for AWS | **Decided (default; owner deferred):** IAM Identity Center (single sign-on, temporary credentials) instead of IAM access keys — see §9 |
-| D3 ✅ | AWS Region | **Decided (owner):** us-east-1 (N. Virginia) |
+| D3 ✅ | AWS Region | **Decided (owner, revised 2026-11-03):** us-east-2 (Ohio), the workload region allowed by the organization SCP (ADR 0013); originally us-east-1 |
 | D4 | App domain | `app.spen10.com` or `marketing.spen10.com` until an S10 domain exists |
 | D5 ✅ | Which Meta Business portfolio owns the Meta app | **Decided (owner):** the existing **SPEN10** business portfolio (Meta Business Suite). LimitKeep's Page is connected only as a publishing target, never as the app owner |
 | D6 | Default AI provider | Claude on **Amazon Bedrock** (Sonnet tier for generation, Haiku tier for quick edits) |
-| D7 ✅ | Email for notifications | Amazon SES in us-east-1 (same Region as S10/Mail). Recommended: dedicated subdomain `notify.spen10.com` verified in the S10/Marketing prod account |
+| D7 ✅ | Email for notifications | Amazon SES in us-east-2 (org SCP; S10/Mail keeps its own SES in its account). Recommended: dedicated subdomain `notify.spen10.com` verified in the S10/Marketing prod account |
 | D8 | LimitKeep as separate org inside S10/Marketing | Yes |
 | D9 ⛔ | Separate Stripe account for S10 products | Yes (Phase 4) |
 | D10 | Image generation in v1? | No — upload only; AI images in Phase 5 |

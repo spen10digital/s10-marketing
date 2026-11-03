@@ -154,7 +154,7 @@ Rules: every tenant table has `org_id`, `unique(org_id,id)`, composite FKs, RLS 
 | `APP_ENV` | Vercel env var / Lambda env | `local` / `dev` / `prod` |
 | `AWS_ROLE_ARN` | Vercel env var (per Vercel environment) | Web runtime role assumed via Vercel OIDC (not a secret) |
 | `APP_URL` | Parameter Store `/s10-marketing/<env>/app-url` | Redirects, links |
-| `AWS_REGION` | runtime | `us-east-1` |
+| `AWS_REGION` | runtime | `us-east-2` |
 | `DB_CLUSTER_ARN`, `DB_SECRET_ARN`, `DB_NAME` | Parameter Store (ARNs are not secrets) | Data API target; secret holds `app_rw` credentials |
 | `DB_OWNER_SECRET_ARN` | CI only | Migrations |
 | `DATABASE_URL` | local `.env.local` only | Docker Postgres |
@@ -246,10 +246,10 @@ No test calls real Meta or Bedrock in CI; no real tokens in fixtures; every bug 
 
 **One-time (owner-approved, M1.1):**
 1. AWS Organizations: create `s10-marketing-dev` and `s10-marketing-prod` accounts; enable IAM Identity Center; create permission sets; enable billing alerts, AWS Budgets ($25 / $75 / $150) and Cost Anomaly Detection.
-2. `cdk bootstrap` both accounts in `us-east-1`.
+2. `cdk bootstrap` both accounts in `us-east-2`.
 3. GitHub: repo, branch protection on `main` and `develop`, push protection for secrets; IAM OIDC provider + deploy roles per account; protected GitHub environment `prod` requiring owner approval.
 4. Bedrock: enable access to the Claude models (and later an image model) in each account.
-5. SES (us-east-1): verify the notification subdomain (e.g. `notify.spen10.com`, DKIM + custom MAIL FROM) in the prod account; request production access (leave the sandbox). Dev account stays in the sandbox and only emails verified addresses.
+5. SES (us-east-2): verify the notification subdomain (e.g. `notify.spen10.com`, DKIM + custom MAIL FROM) in the prod account; request production access (leave the sandbox). Dev account stays in the sandbox and only emails verified addresses.
 6. Meta: set redirect URI, deauthorize and data-deletion URLs to the Vercel custom domain.
 7. Put `META_APP_SECRET` in Secrets Manager manually (never via CDK code or Git).
 8. Vercel: Pro team, project `s10-marketing` (root directory `apps/web`), OIDC issuer mode **Team**, env vars `APP_ENV` and `AWS_ROLE_ARN` per environment (see `docs/runbooks/m1.1-first-deploy.md`).
@@ -291,7 +291,7 @@ No test calls real Meta or Bedrock in CI; no real tokens in fixtures; every bug 
 
 - **Aurora auto-pause:** first request after idle takes ~15 s (longer after >24 h). Use Data API client retries for `DatabaseResumingException`, show a friendly loading state, keep `/api/health` DB-free, and don't hold idle connections.
 - **Data API:** 1 MiB response limit → paginate; transactions must be committed/rolled back explicitly; always use parameters (never string interpolation).
-- **Vercel:** server code gets AWS credentials from `@vercel/functions/oidc` (`awsCredentialsProvider` with `AWS_ROLE_ARN`) — never set `AWS_ACCESS_KEY_ID` env vars. Routes calling AWS must use the Node.js runtime. Set `maxDuration` on long AI routes. Keep functions in `iad1`.
+- **Vercel:** server code gets AWS credentials from `@vercel/functions/oidc` (`awsCredentialsProvider` with `AWS_ROLE_ARN`) — never set `AWS_ACCESS_KEY_ID` env vars. Routes calling AWS must use the Node.js runtime. Set `maxDuration` on long AI routes. Keep functions in `cle1`.
 - **EventBridge Scheduler:** schedule names must be unique per group (hence `-v<version>`); create schedules **after** the DB transaction commits; a missing schedule is caught by the sweeper.
 - **SQS + Lambda:** visibility timeout ≥ 6× function timeout; batch size 1 for publishing; partial batch responses for ingest.
 - **KMS:** plaintext tokens ≤ 4 KB fit direct `Encrypt`; always pass the encryption context; web role has Encrypt only.

@@ -15,7 +15,7 @@ const bool = z
 
 export const configSchema = z.object({
   APP_ENV: z.enum(['local', 'dev', 'prod']),
-  AWS_REGION: z.literal('us-east-1').default('us-east-1'),
+  AWS_REGION: z.literal('us-east-2').default('us-east-2'),
   APP_URL: z.url().default('http://localhost:3000'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
@@ -111,7 +111,7 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<AppCo
   const appEnv = env.APP_ENV ?? 'local';
   if (appEnv !== 'dev' && appEnv !== 'prod') return parseConfig({ ...env, APP_ENV: appEnv });
 
-  const ssm = options.ssm ?? new SSMClient({ region: env.AWS_REGION ?? 'us-east-1' });
+  const ssm = options.ssm ?? new SSMClient({ region: env.AWS_REGION ?? 'us-east-2' });
   const params = await readParameters(ssm, parameterPrefix(appEnv));
   return parseConfig({ ...params, ...definedOnly(env), APP_ENV: appEnv });
 }
