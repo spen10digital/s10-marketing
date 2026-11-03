@@ -41,5 +41,4 @@ jobs:
         run: >-
           pnpm exec cdk deploy --all --require-approval never
           --context env=${{ inputs.environment }}
-          --context githubRepo=${{ github.repository }}
           --context alertEmail=${{ vars.OPS_ALERT_EMAIL }}

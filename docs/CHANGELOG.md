@@ -36,3 +36,4 @@
 - Region switched to **us-east-2** in the config schema, web server, CDK environments and CI; Vercel functions moved to `cle1`. Revised D3/D7 and updated CLAUDE.md, 01, 02, 05, 06, runbook and ADR 0012.
 - Dev stacks deployed (owner) and the Vercel preview verified against AWS via OIDC.
 - Hosted deployments (Vercel, Lambda) now refuse to start without `APP_ENV=dev|prod` (`assertDeploymentEnv`, run from `apps/web/src/instrumentation.ts` and `loadConfig`), instead of silently running as `local`. Vercel **Production** needs `APP_ENV=prod` and `AWS_ROLE_ARN` before `main` is deployed.
+- GitHub OIDC: the repo uses GitHub's immutable subject (`repo:owner@id/repo@id:…`), so the Cicd roles now trust that exact form. Non-secret CDK context (`vercelTeam`, `githubRepo`) moved to `infra/cdk.json`; CI diffs all stacks with `--method=template` (the diff role can only read).
