@@ -10,12 +10,17 @@
     "./errors": "./src/errors/app-error.ts",
     "./db": "./src/db/index.ts",
     "./domain": "./src/domain/index.ts",
-    "./auth": "./src/auth/oauth.ts"
+    "./auth": "./src/auth/oauth.ts",
+    "./ai": "./src/ai/index.ts",
+    "./ai/client": "./src/ai/client.ts",
+    "./sources": "./src/sources/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1161.0",
+    "@aws-sdk/client-cloudwatch": "^3.1161.0",
     "@aws-sdk/client-rds-data": "^3.1161.0",
     "@aws-sdk/client-secrets-manager": "^3.1161.0",
     "@aws-sdk/client-ssm": "^3.1161.0",

@@ -10,6 +10,8 @@ export const ACTION_MIN_ROLE = {
   'brand.create': 'admin',
   'brand.update': 'admin',
   'brand.voice.update': 'editor',
+  'ai.generate': 'editor',
+  'post.draft.write': 'editor',
   'audit.read': 'admin',
   'org.read': 'viewer',
 } as const satisfies Record<string, OrgRole>;

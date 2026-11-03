@@ -125,6 +125,18 @@ describe('CoreStack', () => {
       Name: '/s10-marketing/dev/meta-graph-version',
       Value: 'v26.0',
     });
+    t.hasResourceProperties('AWS::SSM::Parameter', {
+      Name: '/s10-marketing/dev/ai-model-generate',
+      Value: 'us.anthropic.claude-sonnet-5-5',
+    });
+    t.hasResourceProperties('AWS::SSM::Parameter', {
+      Name: '/s10-marketing/dev/ai-model-fast',
+      Value: 'us.anthropic.claude-haiku-5-5',
+    });
+    t.hasResourceProperties('AWS::SSM::Parameter', {
+      Name: '/s10-marketing/dev/ai-default-monthly-budget-usd',
+      Value: '10',
+    });
   });
 
   it('subscribes the alert email when provided', () => {
@@ -224,6 +236,45 @@ describe('VercelAccessStack', () => {
     expect(secret.Action).toBe('secretsmanager:GetSecretValue');
     expect(JSON.stringify(secret.Resource)).toContain('AppRwSecret');
     expect(JSON.stringify(statements)).not.toMatch(/ClusterSecret|app-owner/);
+  });
+
+  it('lets the web role invoke only the configured Claude models, through their inference profiles', () => {
+    const statements = Object.values(t.findResources('AWS::IAM::Policy')).flatMap(
+      (p) =>
+        p.Properties.PolicyDocument.Statement as {
+          Sid?: string;
+          Action: unknown;
+          Resource: unknown;
+          Condition?: unknown;
+        }[],
+    );
+    const bedrock = statements.filter((s) => JSON.stringify(s.Action).includes('bedrock:'));
+    expect(bedrock.map((s) => s.Sid)).toEqual(['BedrockInferenceProfiles', 'BedrockModelsViaProfiles']);
+    for (const s of bedrock) {
+      expect(s.Action).toEqual(['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream']);
+    }
+    const profiles = JSON.stringify(bedrock[0]!.Resource);
+    expect(profiles).toContain('inference-profile/us.anthropic.claude-sonnet-5-5');
+    expect(profiles).toContain('inference-profile/us.anthropic.claude-haiku-5-5');
+    const models = JSON.stringify(bedrock[1]!.Resource);
+    expect(models).toContain('foundation-model/anthropic.claude-sonnet-5-5');
+    expect(models).not.toContain('foundation-model/*');
+    expect(models).not.toContain('foundation-model/us.');
+    expect(JSON.stringify(bedrock[1]!.Condition)).toContain('bedrock:InferenceProfileArn');
+  });
+
+  it('lets the web role write metrics only to the AI namespace', () => {
+    t.hasResourceProperties('AWS::IAM::Policy', {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Sid: 'AiMetrics',
+            Action: 'cloudwatch:PutMetricData',
+            Condition: { StringEquals: { 'cloudwatch:namespace': 'S10Marketing/AI' } },
+          }),
+        ]),
+      },
+    });
   });
 });
 

@@ -12,6 +12,6 @@ Run all S10/Marketing workloads in **us-east-2 (Ohio)** and leave the organizati
 
 ## Consequences
 - `AWS_REGION` is `us-east-2` everywhere (config schema, web server, CDK, CI). The config loader rejects any other region.
-- Bedrock model access is enabled in us-east-2; `us.` inference profiles route across US regions.
+- Bedrock model access is enabled in us-east-2; `us.` inference profiles route across US regions. An SCP that blocks those destination regions also blocks the call, so M1.3 checks this on dev and may need a narrow Bedrock-only SCP exception (`docs/runbooks/m1.3-ai-studio.md` step 2).
 - SES for S10/Marketing is verified in us-east-2; S10/Mail's SES (in its own account) is unaffected.
 - Moving regions later would mean redeploying stacks and migrating data, so this should stay stable.

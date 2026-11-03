@@ -110,6 +110,9 @@ export class CoreStack extends Stack {
       'ingest-queue-url': this.ingestQueue.queueUrl,
       'ops-alert-topic-arn': this.opsTopic.topicArn,
       'meta-graph-version': 'v26.0',
+      'ai-model-generate': props.config.ai.generateModel,
+      'ai-model-fast': props.config.ai.fastModel,
+      'ai-default-monthly-budget-usd': String(props.config.ai.defaultMonthlyBudgetUsd),
       // Kill switches start off; turning them on is a deliberate owner action.
       'publishing-enabled': 'false',
       'automation-enabled': 'false',
