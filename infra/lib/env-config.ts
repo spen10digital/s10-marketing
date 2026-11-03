@@ -18,6 +18,15 @@ export interface EnvConfig {
    * repos/<owner>/<repo>/actions/oidc/customization/sub`); older ones use `owner/repo`.
    */
   githubRepo?: string;
+  /**
+   * Origins of the web app that may complete Cognito sign-in (callback and sign-out URLs).
+   * Cognito does not accept wildcards, so per-commit Vercel preview URLs cannot sign in; use the
+   * stable branch alias. Override with `--context appUrls=https://a,https://b`. The Identity stack
+   * is only created when this is non-empty; the first entry becomes APP_URL.
+   */
+  appUrls: string[];
+  /** Aurora Serverless v2 capacity range (ACU). Min 0 lets the cluster pause when idle. */
+  dbCapacity: { min: number; max: number };
 }
 
 const base = {
@@ -27,8 +36,22 @@ const base = {
 } as const;
 
 export const ENVIRONMENTS: Record<EnvName, Omit<EnvConfig, 'alertEmail' | 'githubRepo' | 'vercelTeam'>> = {
-  dev: { ...base, budgetThresholdsUsd: [...base.budgetThresholdsUsd], envName: 'dev' },
-  prod: { ...base, budgetThresholdsUsd: [...base.budgetThresholdsUsd], envName: 'prod' },
+  dev: {
+    ...base,
+    budgetThresholdsUsd: [...base.budgetThresholdsUsd],
+    envName: 'dev',
+    // The `develop` branch alias on Vercel (<project>-git-<branch>-<team>.vercel.app) and local dev.
+    appUrls: ['https://s10-marketing-git-develop-spen-10-digital.vercel.app', 'http://localhost:3000'],
+    dbCapacity: { min: 0, max: 4 },
+  },
+  // Prod sign-in waits for the production domain (--context appUrls=https://…).
+  prod: {
+    ...base,
+    budgetThresholdsUsd: [...base.budgetThresholdsUsd],
+    envName: 'prod',
+    appUrls: [],
+    dbCapacity: { min: 0, max: 4 },
+  },
 };
 
 const optionalString = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
@@ -38,6 +61,7 @@ export function resolveEnvConfig(context: {
   alertEmail?: unknown;
   githubRepo?: unknown;
   vercelTeam?: unknown;
+  appUrls?: unknown;
 }): EnvConfig {
   const envName = context.env ?? 'dev';
   if (envName !== 'dev' && envName !== 'prod') {
@@ -51,7 +75,23 @@ export function resolveEnvConfig(context: {
   if (vercelTeam && !/^[a-z0-9][a-z0-9-]*$/.test(vercelTeam)) {
     throw new Error('vercelTeam must be the Vercel team slug (lowercase letters, digits, hyphens)');
   }
-  return { ...ENVIRONMENTS[envName], alertEmail: optionalString(context.alertEmail), githubRepo, vercelTeam };
+  const appUrlsOverride = optionalString(context.appUrls)
+    ?.split(',')
+    .map((u) => u.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  for (const url of appUrlsOverride ?? []) {
+    if (!/^(https:\/\/[a-z0-9.-]+|http:\/\/localhost(:\d+)?)$/.test(url)) {
+      throw new Error(`appUrls entry "${url}" must be an https origin (or http://localhost) with no path`);
+    }
+  }
+  const base = ENVIRONMENTS[envName];
+  return {
+    ...base,
+    appUrls: appUrlsOverride ?? [...base.appUrls],
+    alertEmail: optionalString(context.alertEmail),
+    githubRepo,
+    vercelTeam,
+  };
 }
 
 /** Parameter Store prefix read by `packages/core/src/config/params.ts`. */

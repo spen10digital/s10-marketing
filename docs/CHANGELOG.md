@@ -37,3 +37,36 @@
 - Dev stacks deployed (owner) and the Vercel preview verified against AWS via OIDC.
 - Hosted deployments (Vercel, Lambda) now refuse to start without `APP_ENV=dev|prod` (`assertDeploymentEnv`, run from `apps/web/src/instrumentation.ts` and `loadConfig`), instead of silently running as `local`. Vercel **Production** needs `APP_ENV=prod` and `AWS_ROLE_ARN` before `main` is deployed.
 - GitHub OIDC: the repo uses GitHub's immutable subject (`repo:owner@id/repo@id:…`), so the Cicd roles now trust that exact form. Non-secret CDK context (`vercelTeam`, `githubRepo`) moved to `infra/cdk.json`; CI diffs all stacks with `--method=template` (the diff role can only read).
+
+## 2026-11-03 — M1.2 Auth, database, organizations, brands (with RLS)
+- **Migration `0001_core_tenancy`:**
+  - roles `app_owner` and `app_rw`, and request-context functions;
+  - tables `users`, `user_identities`, `organizations`, `organization_members`, `brands`, `brand_voice_profiles` (append-only versions), `audit_logs` (written by a trigger; records changed column names only) and `system_flags` (kill switches off);
+  - RLS enabled **and forced** everywhere, composite foreign keys, and column-level update grants.
+  - SECURITY DEFINER helpers: `is_org_member`, `has_org_role`, `register_user`, `resolve_user`, `create_organization` (ADR 0015).
+- **`packages/core`:**
+  - `db/`: a Drizzle client for local Postgres or the RDS Data API, `withDbContext` (transaction-local `set_config`), retry while Aurora resumes, the migration runner and SQL splitter;
+  - `domain/`: orgs, brands, voice and a permissions matrix;
+  - `auth/`: Cognito OAuth code + PKCE helpers.
+- **CDK:**
+  - `DatabaseStack`: Aurora PostgreSQL 16 Serverless v2, 0–4 ACU with auto-pause, Data API, isolated VPC without an internet gateway or NAT, `app_owner` and `app_rw` secrets, and `db-*` parameters.
+  - `IdentityStack`: the `s10-identity-<env>` pool (Essentials, optional TOTP MFA, retained on delete), managed login v2, and a public PKCE client.
+  - The web role gets Data API access scoped to the cluster and the `app_rw` secret.
+  - `appUrls` context: dev = the `develop` alias + localhost; the prod Identity stack waits for its domain.
+- **Web:**
+  - sign-in, sign-up, refresh and POST-only sign-out routes with HTTP-only cookies (ADR 0014);
+  - an `(app)` route group that requires a session;
+  - onboarding that creates your first organization (**no seeded orgs or brands**, owner's request);
+  - an org switcher, dashboard, brand create/edit/archive, and a voice editor with version history;
+  - a `/signed-out` page.
+- **Scripts:** `pnpm db:migrate` (local, or `--aws --env dev`) and `pnpm db:verify-context --env dev` (proves the Data API `set_config` assumption).
+- **Tests:**
+  - 26 RLS and tenancy tests on Postgres 16, run as `app_rw`: isolation per table, role matrix, composite FK, audit immutability, context not leaking, system actor;
+  - unit tests for the splitter, context, retry, OAuth and domain;
+  - CDK assertions for Database, Identity and web-role scoping;
+  - Playwright tests for the auth redirect, the signed-out page and POST-only sign-out, plus an opt-in signed-in flow for dev.
+- **Changes from the roadmap:**
+  - no Cognito Post Confirmation Lambda (user rows are created at first sign-in);
+  - no `@aws-amplify/adapter-nextjs`;
+  - a self-serve create-organization flow arrives now instead of in Phase 4.
+- **Not done (owner approval required):** deploying the Database and Identity stacks, running migrations on dev Aurora, `db:verify-context`, and the manual sign-in check (`docs/runbooks/m1.2-database-and-sign-in.md`).

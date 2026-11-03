@@ -5,6 +5,8 @@ import { paramPrefix, resourcePrefix, type EnvConfig } from './env-config';
 
 export interface VercelAccessStackProps extends StackProps {
   config: EnvConfig & { vercelTeam: string };
+  /** Data API access as app_rw (RLS enforced); never the app_owner secret. */
+  database?: { clusterArn: string; appSecretArn: string };
 }
 
 /**
@@ -58,5 +60,28 @@ export class VercelAccessStack extends Stack {
       id: `AwsSolutions::AwsSolutions-IAM5[Resource::arn:<AWS::Partition>:ssm:<AWS::Region>:<AWS::AccountId>:parameter${paramPath}/*]`,
       reason: 'Read-only access limited to this environment’s Parameter Store path.',
     });
+
+    if (props.database) {
+      this.webRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: 'DataApi',
+          actions: [
+            'rds-data:ExecuteStatement',
+            'rds-data:BatchExecuteStatement',
+            'rds-data:BeginTransaction',
+            'rds-data:CommitTransaction',
+            'rds-data:RollbackTransaction',
+          ],
+          resources: [props.database.clusterArn],
+        }),
+      );
+      this.webRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: 'DataApiAppRwSecret',
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [props.database.appSecretArn],
+        }),
+      );
+    }
   }
 }

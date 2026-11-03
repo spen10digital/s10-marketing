@@ -2,8 +2,10 @@ import { App, Aspects, Tags, Validations } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { CicdStack } from './cicd-stack';
 import { CoreStack } from './core-stack';
+import { DatabaseStack } from './database-stack';
 import type { EnvConfig } from './env-config';
 import { Guardrails } from './guardrails';
+import { IdentityStack } from './identity-stack';
 import { ObservabilityStack } from './observability-stack';
 import { VercelAccessStack } from './vercel-access-stack';
 
@@ -25,11 +27,17 @@ export function buildApp({ config, account, outdir }: BuildAppOptions) {
     config,
     opsTopic: core.opsTopic,
   });
+  const database = new DatabaseStack(app, name('Database'), { env, config });
+  // Sign-in needs registered callback URLs (config.appUrls); prod waits for its domain.
+  const identity = config.appUrls.length
+    ? new IdentityStack(app, name('Identity'), { env, config })
+    : undefined;
   // The web role is only created once the Vercel team slug is known (--context vercelTeam=...).
   const vercel = config.vercelTeam
     ? new VercelAccessStack(app, name('VercelAccess'), {
         env,
         config: { ...config, vercelTeam: config.vercelTeam },
+        database: { clusterArn: database.cluster.clusterArn, appSecretArn: database.appSecret.secretArn },
       })
     : undefined;
   const cicd = config.githubRepo
@@ -41,5 +49,5 @@ export function buildApp({ config, account, outdir }: BuildAppOptions) {
   Aspects.of(app).add(new Guardrails());
   Validations.of(app).addPlugins(new AwsSolutionsChecks(app, { verbose: true }));
 
-  return { app, core, observability, vercel, cicd };
+  return { app, core, observability, database, identity, vercel, cicd };
 }

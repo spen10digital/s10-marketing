@@ -10,22 +10,24 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@aws-sdk/client-ssm": "^3.1161.0",
     "@s10/core": "workspace:*",
+    "@vercel/functions": "^3.10.5",
+    "aws-jwt-verify": "^5.2.1",
     "clsx": "^2.1.1",
     "next": "16.4.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.3.1",
-    "@vercel/functions": "^3.10.5",
-    "@aws-sdk/client-ssm": "^3.1161.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
+    "@smithy/types": "^4",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "tailwindcss": "^4.3.3",
-    "@smithy/types": "^4"
+    "tailwindcss": "^4.3.3"
   }
 }
