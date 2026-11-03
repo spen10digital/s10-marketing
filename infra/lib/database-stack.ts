@@ -62,7 +62,9 @@ export class DatabaseStack extends Stack {
 
     this.cluster = new rds.DatabaseCluster(this, 'Cluster', {
       clusterIdentifier,
-      engine: rds.DatabaseClusterEngine.auroraPostgres({ version: rds.AuroraPostgresEngineVersion.VER_16_13 }),
+      engine: rds.DatabaseClusterEngine.auroraPostgres({
+        version: rds.AuroraPostgresEngineVersion.VER_16_13,
+      }),
       credentials: rds.Credentials.fromGeneratedSecret('app_owner', { secretName: `${prefix}/db/app-owner` }),
       defaultDatabaseName: DB_NAME,
       writer: rds.ClusterInstance.serverlessV2('writer', {
