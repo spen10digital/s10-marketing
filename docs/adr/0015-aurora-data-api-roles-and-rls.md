@@ -5,7 +5,7 @@
 - **Milestone:** M1.2
 
 ## Decision
-- **Cluster:** Aurora PostgreSQL 16 Serverless v2, 0–4 ACU, auto-pause after 10 min. The RDS Data API is on, storage is encrypted, and deletion protection plus 14-day backups apply in prod. Aurora requires a VPC, so it gets one with **isolated subnets only**: no internet gateway, no NAT, a security group with no inbound rules, and nothing else inside. ADR 0010 still holds for app components; only the database sits in a VPC.
+- **Cluster:** Aurora PostgreSQL 16.13 Serverless v2, 0–4 ACU, auto-pause after 10 min. The RDS Data API is on, storage is encrypted, and deletion protection plus 14-day backups apply in prod. Aurora requires a VPC, so it gets one with **isolated subnets only**: no internet gateway, no NAT, a security group with no inbound rules, and nothing else inside. ADR 0010 still holds for app components; only the database sits in a VPC.
 - **Roles:**
   - `app_owner` is the cluster master user and is used only by `pnpm db:migrate --aws`.
   - `app_rw` is used by the app and workers, with no `BYPASSRLS`. Its password comes from a CDK-generated secret and is applied by the migration runner. The web role can read **only** the `app_rw` secret.
