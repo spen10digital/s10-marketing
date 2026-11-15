@@ -184,11 +184,7 @@ export interface LocalOrgEntitlementRecord {
   connectedSocialPages?: number | null;
 }
 
-export type EntitlementDenialReason =
-  | 'limit_exceeded'
-  | 'budget_exceeded'
-  | 'no_seat'
-  | 'feature_disabled';
+export type EntitlementDenialReason = 'limit_exceeded' | 'budget_exceeded' | 'no_seat' | 'feature_disabled';
 
 export interface EntitlementCheckInput {
   accountId: SuiteAccountId;
@@ -307,10 +303,7 @@ export async function checkEntitlement(
   tx: DbTx,
   input: Omit<EntitlementCheckInput, 'entitlement' | 'source'>,
 ): Promise<EntitlementCheckResult> {
-  const [row] = await tx
-    .select()
-    .from(orgEntitlements)
-    .where(eq(orgEntitlements.orgId, input.accountId));
+  const [row] = await tx.select().from(orgEntitlements).where(eq(orgEntitlements.orgId, input.accountId));
   return evaluateMarketingEntitlement({
     ...input,
     entitlement: row ?? null,
