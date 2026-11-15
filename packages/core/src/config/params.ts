@@ -47,6 +47,8 @@ export const configSchema = z.object({
   AI_MODEL_GENERATE: z.string().optional(),
   AI_MODEL_FAST: z.string().optional(),
   AI_DEFAULT_MONTHLY_BUDGET_USD: z.coerce.number().nonnegative().default(10),
+  /** `fake` (canned answers, no AWS) is for local development and tests only; see parseConfig. */
+  AI_PROVIDER: z.enum(['bedrock', 'fake']).default('bedrock'),
 
   SES_FROM_ADDRESS: z.string().optional(),
   SES_CONFIGURATION_SET: z.string().optional(),
@@ -93,6 +95,9 @@ export function parseConfig(raw: RawConfig): AppConfig {
     // Report key names only; values may be sensitive.
     const keys = [...new Set(result.error.issues.map((i) => i.path.join('.')))].join(', ');
     throw new AppError('CONFIG_INVALID', `Invalid configuration: ${keys}`);
+  }
+  if (result.data.AI_PROVIDER === 'fake' && result.data.APP_ENV !== 'local') {
+    throw new AppError('CONFIG_INVALID', 'Invalid configuration: AI_PROVIDER=fake is only allowed locally');
   }
   return result.data;
 }

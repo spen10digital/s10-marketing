@@ -21,8 +21,15 @@ Names and locations only, never values. The config loader is `packages/core/src/
 | `/s10-marketing/<env>/cognito-client-id` | `COGNITO_CLIENT_ID` | IdentityStack (M1.2) |
 | `/s10-marketing/<env>/cognito-domain` | `COGNITO_DOMAIN` (managed-login host) | IdentityStack (M1.2) |
 | `/s10-marketing/<env>/app-url` | `APP_URL` (first of `appUrls`; dev = the `develop` branch alias) | IdentityStack (M1.2) |
+| `/s10-marketing/<env>/ai-model-generate` | `AI_MODEL_GENERATE` (`us.anthropic.claude-sonnet-5-5`) | CoreStack (M1.3) |
+| `/s10-marketing/<env>/ai-model-fast` | `AI_MODEL_FAST` (`us.anthropic.claude-haiku-5-5`) | CoreStack (M1.3) |
+| `/s10-marketing/<env>/ai-default-monthly-budget-usd` | `AI_DEFAULT_MONTHLY_BUDGET_USD` (`10`, per org) | CoreStack (M1.3) |
 
-Not yet created: Meta, AI (`ai-model-generate` = Claude Sonnet 5.5, `ai-model-fast` = Claude Haiku 5.5 inference profiles), SES and Scheduler parameters arrive with their milestones (05 §5).
+Not yet created: Meta, SES and Scheduler parameters arrive with their milestones (05 §5).
+
+Per-org AI limits that differ from the defaults (monthly budget, 100 AI calls/day, 20 website reads/day) live in the `org_entitlements` table, not in config (ADR 0016).
+
+`AI_PROVIDER` (`bedrock` default, `fake` for local development only) is an environment variable; the config loader refuses `fake` outside `APP_ENV=local`.
 
 ## Vercel environment variables (project `s10-marketing`; not secrets)
 | Name | Preview + Development | Production |
@@ -48,6 +55,9 @@ Created manually by the owner (never via CDK or Git):
 
 ## GitHub repository/environment variables (not secrets)
 `AWS_DEV_DIFF_ROLE_ARN`, `AWS_DEPLOY_ROLE_ARN` (per environment), `OPS_ALERT_EMAIL`.
+
+## CloudWatch metrics
+Namespace `S10Marketing/AI`, dimensions `Environment` and `Model`: `InputTokens`, `OutputTokens`, `CacheReadTokens`, `CostMicroUsd`, `Generations`, `FailedGenerations`. The web role can only write to this namespace.
 
 ## Cookies (web)
 `s10_at` (access token), `s10_rt` (refresh token, 30 days), `s10_oauth` (PKCE state, 10 min), `s10_org` (selected org id; only honoured for orgs the user belongs to). All HTTP-only, `SameSite=Lax`, `Secure` on https.

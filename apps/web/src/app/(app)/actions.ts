@@ -4,6 +4,7 @@ import { withDbContext } from '@s10/core/db';
 import {
   createBrand,
   createOrganization,
+  createPostDraft,
   listMyOrganizations,
   saveVoice,
   setBrandArchived,
@@ -139,4 +140,31 @@ export async function saveVoiceAction(_prev: ActionState, form: FormData): Promi
   }
   revalidatePath(`/b/${slug}`);
   redirect(`/b/${slug}?saved=voice`);
+}
+
+/** Saves a Studio draft (unassigned until a Page is chosen). Called directly, not from a form. */
+export async function savePostDraftAction(input: {
+  brandId: string;
+  brandSlug: string;
+  body: string;
+  linkUrl?: string | null;
+  brief?: string | null;
+  aiGenerationId?: string | null;
+}): Promise<ActionState & { postId?: string }> {
+  try {
+    const actor = await requireOrgActor();
+    const post = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
+      createPostDraft(tx, actor, {
+        brandId: input.brandId,
+        body: input.body,
+        linkUrl: input.linkUrl,
+        brief: input.brief,
+        aiGenerationId: input.aiGenerationId,
+      }),
+    );
+    revalidatePath(`/b/${z.string().max(64).parse(input.brandSlug)}/studio`);
+    return { status: 'success', message: 'Draft saved.', postId: post.id };
+  } catch (err) {
+    return toActionState(err);
+  }
 }

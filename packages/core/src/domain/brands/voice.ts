@@ -1,5 +1,4 @@
 import { and, desc, eq } from 'drizzle-orm';
-import { z } from 'zod';
 import type { DbTx } from '../../db/client';
 import { brandVoiceProfiles, users } from '../../db/schema';
 import { AppError } from '../../errors/app-error';
@@ -8,22 +7,8 @@ import { conflictOr, type OrgActor } from './service';
 
 export type BrandVoiceProfile = typeof brandVoiceProfiles.$inferSelect;
 
-const list = (maxItems: number, maxLength: number) =>
-  z
-    .array(z.string().trim().max(maxLength))
-    .max(maxItems)
-    .transform((items) => items.filter((v) => v !== ''));
-
-export const brandVoiceInput = z.object({
-  audience: z.string().trim().max(1000),
-  tone: z.string().trim().max(500),
-  guidelines: z.string().trim().max(4000),
-  doList: list(20, 300),
-  dontList: list(20, 300),
-  examplePosts: list(10, 2000),
-  ctaDefaults: list(10, 300),
-});
-export type BrandVoiceInput = z.input<typeof brandVoiceInput>;
+export { brandVoiceInput, type BrandVoiceInput } from './voice-input';
+import { brandVoiceInput, type BrandVoiceInput } from './voice-input';
 
 /** The current voice profile is the highest version; null until the first save. */
 export async function getCurrentVoice(tx: DbTx, orgId: string, brandId: string) {

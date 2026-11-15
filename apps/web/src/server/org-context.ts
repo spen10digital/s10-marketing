@@ -4,7 +4,7 @@ import { getCurrentUserProfile, listMyOrganizations, type OrgActor, type OrgSumm
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
-import { requireSession, type Session } from './auth/session';
+import { getSession, requireSession, type Session } from './auth/session';
 import { COOKIES } from './auth/cookies';
 import { getDb } from './db';
 
@@ -36,4 +36,20 @@ export async function requireOrgActor(): Promise<OrgActor & { org: OrgSummary; s
   const { session, current } = await getOrgContext();
   if (!current) redirect('/orgs/new');
   return { userId: session.userId, orgId: current.id, role: current.role, org: current, session };
+}
+
+/**
+ * For API routes, which answer 401 instead of redirecting: the signed-in user's selected
+ * organization, or null.
+ */
+export async function getOrgActorForApi(): Promise<(OrgActor & { session: Session }) | null> {
+  const session = await getSession();
+  if (!session) return null;
+  const db = await getDb();
+  const orgs = await withDbContext(db, { userId: session.userId }, (tx) =>
+    listMyOrganizations(tx, session.userId),
+  );
+  const preferred = (await cookies()).get(COOKIES.currentOrg)?.value;
+  const current = orgs.find((o) => o.id === preferred) ?? orgs[0];
+  return current ? { userId: session.userId, orgId: current.id, role: current.role, session } : null;
 }

@@ -7,7 +7,7 @@ import { OrgSwitcher } from './org-switcher';
 
 const nav = [
   { label: 'Dashboard', href: '/dashboard', milestone: null },
-  { label: 'Studio', href: null, milestone: 'M1.3' },
+  { label: 'Studio', href: '/studio', milestone: null },
   { label: 'Queue', href: null, milestone: 'M1.5' },
   { label: 'Media', href: null, milestone: 'M1.6' },
   { label: 'Calendar', href: null, milestone: 'M2.2' },

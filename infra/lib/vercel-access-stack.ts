@@ -1,7 +1,7 @@
 import { Aws, Duration, Stack, Validations, type StackProps } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type { Construct } from 'constructs';
-import { paramPrefix, resourcePrefix, type EnvConfig } from './env-config';
+import { paramPrefix, resourcePrefix, US_INFERENCE_REGIONS, type EnvConfig } from './env-config';
 
 export interface VercelAccessStackProps extends StackProps {
   config: EnvConfig & { vercelTeam: string };
@@ -61,6 +61,24 @@ export class VercelAccessStack extends Stack {
       reason: 'Read-only access limited to this environment’s Parameter Store path.',
     });
 
+    this.grantBedrock([props.config.ai.generateModel, props.config.ai.fastModel]);
+
+    // AI token/cost metrics (M1.3). PutMetricData has no resource ARNs; the namespace condition
+    // is the only way to scope it.
+    this.webRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'AiMetrics',
+        actions: ['cloudwatch:PutMetricData'],
+        resources: ['*'],
+        conditions: { StringEquals: { 'cloudwatch:namespace': 'S10Marketing/AI' } },
+      }),
+    );
+    Validations.of(this.webRole).acknowledge({
+      id: 'AwsSolutions::AwsSolutions-IAM5[Resource::*]',
+      reason:
+        'cloudwatch:PutMetricData does not support resource ARNs; it is limited to the S10Marketing/AI namespace by condition.',
+    });
+
     if (props.database) {
       this.webRole.addToPolicy(
         new iam.PolicyStatement({
@@ -83,5 +101,32 @@ export class VercelAccessStack extends Stack {
         }),
       );
     }
+  }
+
+  /**
+   * Bedrock Converse/ConverseStream for exactly the configured models (ADR 0006): the US
+   * inference profiles in this account, and the foundation models behind them only when called
+   * through those profiles. The model never gets tools, so no other Bedrock action is needed.
+   */
+  private grantBedrock(profileIds: string[]) {
+    const actions = ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'];
+    const profileArns = profileIds.map(
+      (id) => `arn:${Aws.PARTITION}:bedrock:${Aws.REGION}:${Aws.ACCOUNT_ID}:inference-profile/${id}`,
+    );
+    this.webRole.addToPolicy(
+      new iam.PolicyStatement({ sid: 'BedrockInferenceProfiles', actions, resources: profileArns }),
+    );
+    this.webRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'BedrockModelsViaProfiles',
+        actions,
+        resources: profileIds.flatMap((id) =>
+          US_INFERENCE_REGIONS.map(
+            (region) => `arn:${Aws.PARTITION}:bedrock:${region}::foundation-model/${id.replace(/^us\./, '')}`,
+          ),
+        ),
+        conditions: { StringEquals: { 'bedrock:InferenceProfileArn': profileArns } },
+      }),
+    );
   }
 }

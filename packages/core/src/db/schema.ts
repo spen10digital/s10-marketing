@@ -126,6 +126,126 @@ export const systemFlags = pgTable('system_flags', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const POST_STATUSES = [
+  'draft',
+  'awaiting_approval',
+  'approved',
+  'scheduled',
+  'publishing',
+  'published',
+  'failed',
+  'needs_reconciliation',
+  'canceled',
+  'archived',
+] as const;
+export type PostStatus = (typeof POST_STATUSES)[number];
+export const postStatus = appSchema.enum('post_status', POST_STATUSES);
+
+export const orgEntitlements = pgTable('org_entitlements', {
+  orgId: uuid('org_id').primaryKey(),
+  aiMonthlyBudgetMicros: bigint('ai_monthly_budget_micros', { mode: 'number' }),
+  aiDailyCalls: integer('ai_daily_calls'),
+  webFetchDaily: integer('web_fetch_daily'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const AI_GENERATION_STATUSES = ['pending', 'succeeded', 'failed', 'invalid_output'] as const;
+export type AiGenerationStatus = (typeof AI_GENERATION_STATUSES)[number];
+
+export const aiGenerations = pgTable(
+  'ai_generations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    brandId: uuid('brand_id').notNull(),
+    task: text('task').notNull(),
+    templateId: text('template_id').notNull(),
+    templateVersion: integer('template_version').notNull(),
+    provider: text('provider').notNull(),
+    modelId: text('model_id').notNull(),
+    status: text('status').$type<AiGenerationStatus>().notNull().default('pending'),
+    reservedMicros: bigint('reserved_micros', { mode: 'number' }).notNull().default(0),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+    cacheWriteTokens: integer('cache_write_tokens').notNull().default(0),
+    costMicros: bigint('cost_micros', { mode: 'number' }).notNull().default(0),
+    latencyMs: integer('latency_ms'),
+    errorCode: text('error_code'),
+    sourceUrl: text('source_url'),
+    sourceExcerpt: text('source_excerpt'),
+    output: jsonb('output').$type<unknown>(),
+    createdBy: uuid('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => [unique().on(t.orgId, t.id)],
+);
+
+export const usageEvents = pgTable('usage_events', {
+  id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  orgId: uuid('org_id').notNull(),
+  kind: text('kind').$type<'ai_tokens' | 'web_fetch'>().notNull(),
+  quantity: bigint('quantity', { mode: 'number' }).notNull(),
+  costMicros: bigint('cost_micros', { mode: 'number' }).notNull().default(0),
+  refId: uuid('ref_id'),
+  createdBy: uuid('created_by'),
+  occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const contentItems = pgTable(
+  'content_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    brandId: uuid('brand_id').notNull(),
+    kind: text('kind').$type<'post' | 'article' | 'campaign'>().notNull().default('post'),
+    title: text('title'),
+    brief: text('brief'),
+    sourceItemId: uuid('source_item_id'),
+    createdBy: uuid('created_by'),
+    ...timestamps,
+  },
+  (t) => [unique().on(t.orgId, t.id)],
+);
+
+export const posts = pgTable(
+  'posts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    brandId: uuid('brand_id').notNull(),
+    contentItemId: uuid('content_item_id'),
+    targetId: uuid('target_id'),
+    status: postStatus('status').notNull().default('draft'),
+    body: text('body').notNull().default(''),
+    linkUrl: text('link_url'),
+    contentHash: text('content_hash').generatedAlwaysAs(
+      sql`md5(lower(regexp_replace(body, '\\s+', ' ', 'g')) || coalesce(link_url, ''))`,
+    ),
+    aiGenerationId: uuid('ai_generation_id'),
+    version: integer('version').notNull().default(1),
+    createdBy: uuid('created_by'),
+    ...timestamps,
+  },
+  (t) => [unique().on(t.orgId, t.id)],
+);
+
+export const postRevisions = pgTable(
+  'post_revisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    postId: uuid('post_id').notNull(),
+    version: integer('version').notNull(),
+    body: text('body').notNull(),
+    linkUrl: text('link_url'),
+    createdBy: uuid('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.orgId, t.id), unique().on(t.postId, t.version)],
+);
+
 export const schema = {
   users,
   userIdentities,
@@ -135,5 +255,11 @@ export const schema = {
   brandVoiceProfiles,
   auditLogs,
   systemFlags,
+  orgEntitlements,
+  aiGenerations,
+  usageEvents,
+  contentItems,
+  posts,
+  postRevisions,
 };
 export type Schema = typeof schema;

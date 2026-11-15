@@ -5,10 +5,11 @@ import { can, getBrandBySlug, getCurrentVoice, listVoiceVersions } from '@s10/co
 import { BrandForm } from '@/app/(app)/brands/brand-form';
 import { setBrandArchivedAction } from '@/app/(app)/actions';
 import { Badge } from '@/components/ui/badge';
+import { ButtonLink } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDb } from '@/server/db';
 import { requireOrgActor } from '@/server/org-context';
-import { VoiceForm } from './voice-form';
+import { VoiceWorkspace } from './voice-workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,15 +46,18 @@ export default async function BrandPage({ params, searchParams }: Props) {
           </h1>
           <p className="text-sm text-muted-foreground">{actor.org.name}</p>
         </div>
-        {canEditBrand ? (
-          <form action={setBrandArchivedAction}>
-            <input type="hidden" name="brandId" value={brand.id} />
-            <input type="hidden" name="archived" value={brand.archivedAt ? 'false' : 'true'} />
-            <button type="submit" className="text-sm text-muted-foreground hover:underline">
-              {brand.archivedAt ? 'Restore brand' : 'Archive brand'}
-            </button>
-          </form>
-        ) : null}
+        <div className="flex items-center gap-4">
+          <ButtonLink href={`/b/${brand.slug}/studio`}>Open studio</ButtonLink>
+          {canEditBrand ? (
+            <form action={setBrandArchivedAction}>
+              <input type="hidden" name="brandId" value={brand.id} />
+              <input type="hidden" name="archived" value={brand.archivedAt ? 'false' : 'true'} />
+              <button type="submit" className="text-sm text-muted-foreground hover:underline">
+                {brand.archivedAt ? 'Restore brand' : 'Archive brand'}
+              </button>
+            </form>
+          ) : null}
+        </div>
       </header>
 
       {saved ? (
@@ -67,17 +71,30 @@ export default async function BrandPage({ params, searchParams }: Props) {
           <CardHeader>
             <CardTitle>Brand voice</CardTitle>
             <CardDescription>
-              Used by the AI studio to write on-brand drafts. Every save creates a new version.
+              Used by the AI studio to write on-brand drafts. Every save creates a new version; the assistant
+              can draft or tune it for you.
               {canEditVoice ? null : ' Only editors and above can change it.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <VoiceForm
+            <VoiceWorkspace
               key={voice?.version ?? 0}
               brandId={brand.id}
               brandSlug={brand.slug}
-              voice={voice}
-              disabled={!canEditVoice}
+              websiteUrl={brand.websiteUrl}
+              saved={
+                voice && {
+                  version: voice.version,
+                  audience: voice.audience,
+                  tone: voice.tone,
+                  guidelines: voice.guidelines,
+                  doList: voice.doList,
+                  dontList: voice.dontList,
+                  examplePosts: voice.examplePosts,
+                  ctaDefaults: voice.ctaDefaults,
+                }
+              }
+              canEdit={canEditVoice}
             />
           </CardContent>
         </Card>
