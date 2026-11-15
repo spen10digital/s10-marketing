@@ -45,8 +45,16 @@ Use AWS services wherever AWS offers one, except web hosting, which is on **Verc
 - External content is untrusted data; the AI has no tools that act.
 - Publishing only through `PublishService` + job state machine (idempotency key, attempt log, reconciliation).
 - Human approval by default; auto-publish only via explicit, capped automation policies.
-- LimitKeep is a separate business: separate org here; never connect it to S10/Suite identity or billing.
+- LimitKeep boundary (clarified Nov 10, 2026 in `S10Suite/docs/MASTER-PLAN.md` §2 & `s10-marketing.md` §6): LimitKeep's own customers, checkout, and login stay strictly outside S10/Suite. However, the owner runs LimitKeep's marketing as a comped business under the owner's S10/Suite account, just like any customer's business.
 - No NAT gateways, RDS Proxy, or log groups without retention.
+
+## S10/Suite Phase 3 Integration Seams (`S10Suite/docs/apps/s10-marketing.md` §5–§6)
+Keep all M1.3–M1.6 development forward-compatible with Suite Phase 3 integration by following these seams:
+1. **Tenancy Mapping (`account_id` & `business_id`):** `organizations` (`org_id`) maps 1:1 to Suite `account_id`; `brands` (`brand_id`) maps 1:1 to Suite `business_id`. Usage counts and AI budgets remain scoped per-account (`org_id`), since Suite plan limits are shared across all businesses under an account.
+2. **Business & Brand Kit Seam (`getCurrentBusiness()`):** Access current brand/business details and voice through a single helper function (`getCurrentBusiness()`). Today it reads Marketing's own tables (`brands`, `brand_voice_profiles`); in Phase 3 it will read/write the Suite Brand Kit API.
+3. **Entitlements Seam (`checkEntitlement()`):** Route feature and limit checks (connected social pages, AI allowance, `marketing.seats`) through a single server-side helper (`checkEntitlement()`). Today it checks `org_entitlements`; in Phase 3 it will call S10/Suite `GET /api/v1/entitlements` (60s cache, fail-closed, using `@vercel/oidc` for worker/no-user calls).
+4. **Identity & Role Seam (`user_identities`):** Keep `user_identities(issuer, subject)` decoupled from `s10-identity-<env>` so switching the Cognito OIDC issuer to `s10-suite-<env>-users` (`login.spen10.com`) and syncing the unified 4-role model (`owner`, `admin`, `member` = `editor`, `viewer`) in Phase 3 requires no schema rewrite.
+5. **Shared UI Kit (`@spen10digital/s10-ui`):** When adopting `s10-ui` under `pnpm`, configure `.npmrc` with `@spen10digital:registry=https://npm.pkg.github.com` and use `--s10-*` semantic CSS tokens exclusively.
 
 ## Commands (created in M1.1)
 `pnpm dev` · `pnpm build` · `pnpm typecheck` · `pnpm lint` · `pnpm test` · `pnpm test:db` · `pnpm test:e2e` · `pnpm db:up` (Docker Postgres) · `pnpm db:migrate` · `pnpm infra:synth` · `pnpm infra:diff` · `pnpm eval:ai` (manual; costs money)

@@ -13,7 +13,8 @@
     "./auth": "./src/auth/oauth.ts",
     "./ai": "./src/ai/index.ts",
     "./ai/client": "./src/ai/client.ts",
-    "./sources": "./src/sources/index.ts"
+    "./sources": "./src/sources/index.ts",
+    "./suite": "./src/suite/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
