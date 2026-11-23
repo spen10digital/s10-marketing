@@ -1,6 +1,7 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { ButtonLink } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DECISION_MESSAGES, type DenialReason } from '@s10/core/suite';
 import { getCognitoSettings } from '@/server/auth/cognito';
 import { getOrgContext } from '@/server/org-context';
 
@@ -12,10 +13,16 @@ export const dynamic = 'force-dynamic';
  * reached (nothing is allowed, fail closed), the Suite refused the sign-in, or none of their
  * accounts has S10/Marketing turned on for them.
  */
-export default async function NoAccessPage() {
-  const [{ suite, orgs }, settings] = await Promise.all([getOrgContext(), getCognitoSettings()]);
-  const message =
-    suite === 'suite-unavailable'
+export default async function NoAccessPage({ searchParams }: { searchParams: Promise<{ reason?: string }> }) {
+  const [{ suite, orgs }, settings, { reason }] = await Promise.all([
+    getOrgContext(),
+    getCognitoSettings(),
+    searchParams,
+  ]);
+  const denied = reason && reason in DECISION_MESSAGES ? DECISION_MESSAGES[reason as DenialReason] : null;
+  const message = denied
+    ? denied
+    : suite === 'suite-unavailable'
       ? 'We can’t reach S10/Suite to check your access, so S10/Marketing is paused. Please try again shortly.'
       : suite === 'suite-refused'
         ? 'S10/Suite didn’t accept your sign-in. Please sign in again.'

@@ -44,7 +44,7 @@ function brandFields(form: FormData) {
 export async function createBrandAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   let slug: string;
   try {
-    const actor = await requireOrgActor();
+    const actor = await requireOrgActor({ write: true });
     const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
       createBrand(tx, actor, brandFields(form)),
     );
@@ -59,7 +59,7 @@ export async function createBrandAction(_prev: ActionState, form: FormData): Pro
 export async function updateBrandAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   let slug: string;
   try {
-    const actor = await requireOrgActor();
+    const actor = await requireOrgActor({ write: true });
     const brandId = z.uuid().parse(formString(form, 'brandId'));
     const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
       updateBrand(tx, actor, brandId, brandFields(form)),
@@ -75,7 +75,7 @@ export async function updateBrandAction(_prev: ActionState, form: FormData): Pro
 }
 
 export async function setBrandArchivedAction(form: FormData): Promise<void> {
-  const actor = await requireOrgActor();
+  const actor = await requireOrgActor({ write: true });
   const brandId = z.uuid().parse(formString(form, 'brandId'));
   const archived = formString(form, 'archived') === 'true';
   const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
@@ -88,7 +88,7 @@ export async function setBrandArchivedAction(form: FormData): Promise<void> {
 export async function saveVoiceAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   let slug: string;
   try {
-    const actor = await requireOrgActor();
+    const actor = await requireOrgActor({ write: true });
     const brandId = z.uuid().parse(formString(form, 'brandId'));
     const expectedVersion = z.coerce.number().int().min(0).parse(formString(form, 'expectedVersion'));
     slug = z.string().parse(formString(form, 'brandSlug'));
@@ -126,7 +126,7 @@ export async function savePostDraftAction(input: {
   aiGenerationId?: string | null;
 }): Promise<ActionState & { postId?: string }> {
   try {
-    const actor = await requireOrgActor();
+    const actor = await requireOrgActor({ write: true });
     const post = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
       createPostDraft(tx, actor, {
         brandId: input.brandId,

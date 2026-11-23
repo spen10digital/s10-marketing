@@ -1,2 +1,2 @@
-﻿export * from './oauth';
+export * from './oauth';
 export * from './seal';

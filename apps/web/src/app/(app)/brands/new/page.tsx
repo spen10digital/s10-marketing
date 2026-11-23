@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'New brand' };
 export const dynamic = 'force-dynamic';
 
 export default async function NewBrandPage() {
-  const actor = await requireOrgActor();
+  const actor = await requireOrgActor({ write: true });
   const allowed = can(actor.role, 'brand.create');
 
   return (

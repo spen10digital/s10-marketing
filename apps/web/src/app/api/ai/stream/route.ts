@@ -2,6 +2,7 @@ import { runStudioAction } from '@s10/core/ai';
 import { withDbContext } from '@s10/core/db';
 import { getBrandBySlug } from '@s10/core/domain';
 import { AppError, toErrorResult } from '@s10/core/errors';
+import { DECISION_MESSAGES } from '@s10/core/suite';
 import { z } from 'zod';
 import { getStudioDeps } from '@/server/ai';
 import { getOrgActorForApi } from '@/server/org-context';
@@ -22,7 +23,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!req.headers.get('content-type')?.startsWith('application/json') || !sameOrigin(req)) {
     return json(403, { ok: false, error: { code: 'FORBIDDEN', message: 'Forbidden.' } });
   }
-  const resolved = await getOrgActorForApi();
+  const resolved = await getOrgActorForApi({ write: true });
   if (!resolved.ok) {
     if (resolved.reason === 'suite-unavailable') {
       return json(503, {
@@ -33,11 +34,11 @@ export async function POST(req: Request): Promise<Response> {
         },
       });
     }
-    if (resolved.reason === 'no-access') {
-      return json(403, {
-        ok: false,
-        error: { code: 'FORBIDDEN', message: 'S10/Marketing isn’t available for this account.' },
-      });
+    if (resolved.reason === 'no-access' || resolved.reason === 'denied') {
+      const message = resolved.suiteReason
+        ? DECISION_MESSAGES[resolved.suiteReason]
+        : 'S10/Marketing isn’t available for this account.';
+      return json(403, { ok: false, error: { code: 'FORBIDDEN', message } });
     }
     return json(401, { ok: false, error: { code: 'UNAUTHENTICATED', message: 'Please sign in again.' } });
   }

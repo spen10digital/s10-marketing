@@ -1,13 +1,14 @@
 import 'server-only';
 import { getCurrentUserProfile, type OrgActor, type OrgSummary } from '@s10/core/domain';
 import { withDbContext } from '@s10/core/db';
-import { createOrgResolver, type SuiteMe } from '@s10/core/suite';
+import { createOrgResolver, type DenialReason, type SuiteMe } from '@s10/core/suite';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { getCognitoSettings } from './auth/cognito';
 import { getSession, requireSession, type Session } from './auth/session';
 import { getDb } from './db';
+import { checkMarketingEntitlement } from './entitlement';
 import { getSuiteClient } from './suite';
 
 export type SuiteState =
@@ -66,27 +67,59 @@ export const getOrgContext = cache(async (): Promise<OrgContext> => {
   return { session, email, suite: 'ok', me: result.me, orgs: result.orgs, current };
 });
 
-/** For pages and actions that need an organization; the person lands on /no-access when there is none. */
-export async function requireOrgActor(): Promise<OrgActor & { org: OrgSummary; session: Session }> {
+export interface ActorOptions {
+  /** The page or action creates or changes something: Viewers may only view. */
+  write?: boolean;
+  /** The Suite business (brand) it acts on. */
+  businessId?: string;
+}
+
+/**
+ * For pages and actions that need an organization AND permission to use S10/Marketing there:
+ * the entitlement check (the Suite, fail closed) runs here, so no page can skip it. People who
+ * cannot be let in land on /no-access with the reason.
+ */
+export async function requireOrgActor(
+  options: ActorOptions = {},
+): Promise<OrgActor & { org: OrgSummary; session: Session }> {
   const { session, current } = await getOrgContext();
   if (!current) redirect('/no-access');
+  const decision = await checkMarketingEntitlement(session, current, {
+    write: options.write,
+    businessId: options.businessId,
+  });
+  if (!decision.allowed) redirect(`/no-access?reason=${decision.suiteReason ?? 'not-in-plan'}`);
   return { userId: session.userId, orgId: current.id, role: current.role, org: current, session };
 }
 
 export type ApiActorResult =
   | { ok: true; actor: OrgActor & { session: Session } }
-  | { ok: false; reason: 'unauthenticated' | 'suite-unavailable' | 'no-access' };
+  | {
+      ok: false;
+      reason: 'unauthenticated' | 'suite-unavailable' | 'no-access' | 'denied';
+      /** The Suite's reason when `reason` is 'denied'. */
+      suiteReason?: DenialReason;
+    };
 
 /**
  * For API routes, which answer with a status instead of redirecting: the signed-in user's
- * selected organization, or why there is none.
+ * selected organization if the Suite lets them in, or why not.
  */
-export async function getOrgActorForApi(): Promise<ApiActorResult> {
+export async function getOrgActorForApi(options: ActorOptions = {}): Promise<ApiActorResult> {
   const session = await getSession();
   if (!session) return { ok: false, reason: 'unauthenticated' };
   const { suite, current } = await getOrgContext();
   if (suite === 'suite-unavailable') return { ok: false, reason: 'suite-unavailable' };
   if (suite === 'suite-refused') return { ok: false, reason: 'unauthenticated' };
   if (!current) return { ok: false, reason: 'no-access' };
+  const decision = await checkMarketingEntitlement(session, current, {
+    write: options.write,
+    businessId: options.businessId,
+  });
+  if (!decision.allowed) {
+    return decision.suiteReason === 'suite-unavailable'
+      ? { ok: false, reason: 'suite-unavailable' }
+      : { ok: false, reason: 'denied', suiteReason: decision.suiteReason };
+  }
   return { ok: true, actor: { userId: session.userId, orgId: current.id, role: current.role, session } };
 }

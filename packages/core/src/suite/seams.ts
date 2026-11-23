@@ -5,6 +5,8 @@ import type { DbTx } from '../db/client';
 import { brands, orgEntitlements, type OrgRole } from '../db/schema';
 import type { Brand } from '../domain/brands/service';
 import { getCurrentVoice, type BrandVoiceProfile } from '../domain/brands/voice';
+import { SuiteUnavailableError, type SuiteEntitlements } from './client';
+import { decide, type DenialReason } from './entitlement';
 
 /**
  * S10/Suite Phase 3 Integration Seams (S10Suite/docs/apps/s10-marketing.md §5–§6).
@@ -169,6 +171,8 @@ export async function getCurrentBusiness(
 }
 
 export type MarketingEntitlementKey =
+  /** May this person use S10/Marketing here at all (plan, seat, role, business). */
+  | 'app.access'
   | 'ai.monthly_budget_micros'
   | 'ai.daily_calls'
   | 'web_fetch.daily'
@@ -184,7 +188,17 @@ export interface LocalOrgEntitlementRecord {
   connectedSocialPages?: number | null;
 }
 
-export type EntitlementDenialReason = 'limit_exceeded' | 'budget_exceeded' | 'no_seat' | 'feature_disabled';
+export type EntitlementDenialReason =
+  | 'limit_exceeded'
+  | 'budget_exceeded'
+  | 'no_seat'
+  | 'feature_disabled'
+  /** From the Suite (fail closed when it cannot be reached). */
+  | 'suite_unavailable'
+  | 'not_in_plan'
+  | 'view_only'
+  | 'needs_business'
+  | 'no_business';
 
 export interface EntitlementCheckInput {
   accountId: SuiteAccountId;
@@ -210,6 +224,8 @@ export interface EntitlementCheckResult {
   used: number;
   remaining: number | null;
   reason?: EntitlementDenialReason;
+  /** The Suite's own reason (and message key in DECISION_MESSAGES) when the Suite denied. */
+  suiteReason?: DenialReason;
   source: 'local_db' | 'suite_api';
 }
 
@@ -229,6 +245,8 @@ function resolveEntitlementLimit(
       return entitlement?.webFetchDaily ?? DEFAULT_WEB_FETCH_DAILY;
     case 'marketing.seats':
       return entitlement?.seats ?? null;
+    case 'app.access':
+      return null;
     case 'social.connected_pages':
       return entitlement?.connectedSocialPages ?? null;
   }
@@ -294,19 +312,113 @@ export function evaluateMarketingEntitlement(input: EntitlementCheckInput): Enti
   };
 }
 
+/** What the caller wants checked. `app.access` is "may this person use S10/Marketing here at all". */
+export interface CheckEntitlementInput {
+  /** The Suite account whose entitlements decide. */
+  suiteAccountId: string;
+  /** The local organization row (for `org_entitlements` overrides and the result). */
+  orgId: OrgId;
+  key: MarketingEntitlementKey;
+  used?: number;
+  requested?: number;
+  defaultMonthlyBudgetUsd?: number;
+  /** The Suite business (brand) the feature acts on. */
+  businessId?: string;
+  /** The feature stores data, so the person must be working in a business. */
+  requireBusiness?: boolean;
+  /** The feature creates or changes something: Viewers may only view. */
+  write?: boolean;
+}
+
+export interface CheckEntitlementDeps {
+  /**
+   * The Suite's entitlements for the account, as the signed-in person. null means the Suite
+   * refused; it throws SuiteUnavailableError when it cannot answer. Both deny (fail closed).
+   */
+  entitlements: (suiteAccountId: string) => Promise<SuiteEntitlements | null>;
+  /** Needed only for keys that have local `org_entitlements` overrides (AI budget, daily calls, fetches). */
+  tx?: DbTx;
+  /** This app's entitlement key in the Suite. Defaults to `marketing`. */
+  appId?: string;
+}
+
+const SUITE_REASON_TO_DENIAL: Record<DenialReason, EntitlementDenialReason> = {
+  'suite-unavailable': 'suite_unavailable',
+  'not-in-plan': 'not_in_plan',
+  'no-seat': 'no_seat',
+  'view-only': 'view_only',
+  'over-limit': 'limit_exceeded',
+  'no-business': 'no_business',
+  'needs-business': 'needs_business',
+};
+
 /**
- * Server-side Entitlements seam (`s10-marketing.md` §5.3).
- * Today reads `org_entitlements` in Aurora Postgres; in Phase 3 this swaps to
- * S10/Suite `GET /api/v1/entitlements` (60s cache, fail-closed, Vercel OIDC for worker calls).
+ * Server-side Entitlements seam (`s10-marketing.md` §5.3). EVERY feature and limit check goes
+ * through here and asks the Suite (`GET /api/v1/entitlements`, 60 s cache, 5 s timeout) FIRST
+ * with the template's `decide()` semantics: app in the plan, a seat, Viewers read-only, the
+ * right business, `null` = unlimited. Then the existing `org_entitlements` overrides apply for
+ * the AI budget, daily AI calls and daily web fetches, exactly as before.
+ *
+ * Fail closed: when the Suite gives no answer, nothing is allowed and the database is not
+ * touched (no state is read or written from the missing answer).
  */
 export async function checkEntitlement(
-  tx: DbTx,
-  input: Omit<EntitlementCheckInput, 'entitlement' | 'source'>,
+  deps: CheckEntitlementDeps,
+  input: CheckEntitlementInput,
 ): Promise<EntitlementCheckResult> {
-  const [row] = await tx.select().from(orgEntitlements).where(eq(orgEntitlements.orgId, input.accountId));
-  return evaluateMarketingEntitlement({
-    ...input,
+  const appId = deps.appId ?? 'marketing';
+  const used = Math.max(0, input.used ?? 0);
+  const requested = Math.max(0, input.requested ?? 1);
+
+  let ent: SuiteEntitlements | null;
+  try {
+    ent = await deps.entitlements(input.suiteAccountId);
+  } catch (err) {
+    if (!(err instanceof SuiteUnavailableError)) throw err;
+    ent = null;
+  }
+
+  const seats = input.key === 'marketing.seats';
+  const decision = decide(ent, appId, {
+    businessId: input.businessId,
+    requireBusiness: input.requireBusiness,
+    write: input.write,
+    ...(seats ? { limitKey: 'marketing.seats', amount: used + requested } : {}),
+  });
+  const base = {
+    accountId: input.suiteAccountId,
+    orgId: input.orgId,
+    key: input.key,
+    used,
+    source: 'suite_api' as const,
+  };
+  if (!decision.allowed) {
+    return {
+      ...base,
+      allowed: false,
+      limit: decision.limit ?? null,
+      remaining: decision.limit === undefined ? null : Math.max(0, decision.limit - used),
+      reason: seats && decision.reason === 'over-limit' ? 'no_seat' : SUITE_REASON_TO_DENIAL[decision.reason],
+      suiteReason: decision.reason,
+    };
+  }
+  if (input.key === 'app.access') return { ...base, allowed: true, limit: null, remaining: null };
+  if (seats) {
+    const limit = decision.limit ?? null;
+    return { ...base, allowed: true, limit, remaining: limit === null ? null : Math.max(0, limit - used) };
+  }
+
+  // The Suite said yes. Now the local per-organization overrides for the limits this app meters itself.
+  if (!deps.tx) throw new Error(`checkEntitlement(${input.key}) needs a transaction for local limits`);
+  const [row] = await deps.tx.select().from(orgEntitlements).where(eq(orgEntitlements.orgId, input.orgId));
+  const local = evaluateMarketingEntitlement({
+    accountId: input.orgId,
+    key: input.key,
+    used,
+    requested,
+    defaultMonthlyBudgetUsd: input.defaultMonthlyBudgetUsd,
     entitlement: row ?? null,
     source: 'local_db',
   });
+  return { ...local, accountId: input.suiteAccountId, orgId: input.orgId, source: 'local_db' };
 }
