@@ -1,58 +1,32 @@
 'use server';
 
 import { withDbContext } from '@s10/core/db';
-import {
-  createBrand,
-  createOrganization,
-  createPostDraft,
-  listMyOrganizations,
-  saveVoice,
-  setBrandArchived,
-  updateBrand,
-} from '@s10/core/domain';
+import { createBrand, createPostDraft, saveVoice, setBrandArchived, updateBrand } from '@s10/core/domain';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { COOKIES, cookieOptions } from '@/server/auth/cookies';
-import { requireSession } from '@/server/auth/session';
+import { getCognitoSettings } from '@/server/auth/cognito';
+import { cookieOptions } from '@/server/auth/cookies';
 import { formBlocks, formLines, formString, toActionState, type ActionState } from '@/server/action-state';
-import { getConfig } from '@/server/config';
 import { getDb } from '@/server/db';
-import { requireOrgActor } from '@/server/org-context';
+import { getOrgContext, requireOrgActor } from '@/server/org-context';
 
 const ORG_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
-async function selectOrg(orgId: string) {
-  const secure = (await getConfig()).APP_URL.startsWith('https://');
-  (await cookies()).set(COOKIES.currentOrg, orgId, cookieOptions(secure, ORG_COOKIE_MAX_AGE));
-}
-
-export async function createOrganizationAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  let orgId: string;
-  try {
-    const session = await requireSession('/orgs/new');
-    orgId = await withDbContext(await getDb(), { userId: session.userId }, (tx) =>
-      createOrganization(tx, { name: formString(form, 'name'), timezone: formString(form, 'timezone') }),
-    );
-    await selectOrg(orgId);
-  } catch (err) {
-    return toActionState(err);
-  }
-  revalidatePath('/', 'layout');
-  redirect('/dashboard');
-}
-
-/** The org id comes from the form, so it is only accepted if the user is a member. */
+/** Organizations are Suite accounts and come from the Suite; the selection here is only a preference. */
 export async function switchOrganizationAction(form: FormData): Promise<void> {
-  const session = await requireSession();
+  const { orgs } = await getOrgContext();
   const orgId = z.uuid().safeParse(formString(form, 'orgId'));
   if (!orgId.success) return;
-  const orgs = await withDbContext(await getDb(), { userId: session.userId }, (tx) =>
-    listMyOrganizations(tx, session.userId),
-  );
+  // The org id comes from the form, so it is only accepted if it is one of the person's orgs.
   if (!orgs.some((o) => o.id === orgId.data)) return;
-  await selectOrg(orgId.data);
+  const settings = await getCognitoSettings();
+  (await cookies()).set(
+    settings.names.currentOrg,
+    orgId.data,
+    cookieOptions(settings.secureCookies, ORG_COOKIE_MAX_AGE),
+  );
   revalidatePath('/', 'layout');
   redirect('/dashboard');
 }

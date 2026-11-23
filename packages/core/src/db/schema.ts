@@ -52,6 +52,8 @@ export const organizations = pgTable('organizations', {
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   timezone: text('timezone').notNull(),
+  /** The S10/Suite account this organization is (0003_suite_link). Set only by app.sync_suite_orgs. */
+  suiteAccountId: text('suite_account_id'),
   createdBy: uuid('created_by'),
   ...timestamps,
 });
@@ -77,6 +79,8 @@ export const brands = pgTable(
     description: text('description'),
     websiteUrl: text('website_url'),
     timezone: text('timezone'),
+    /** The S10/Suite business this brand is (0003_suite_link). */
+    suiteBusinessId: text('suite_business_id'),
     settings: jsonb('settings')
       .$type<Record<string, unknown>>()
       .notNull()

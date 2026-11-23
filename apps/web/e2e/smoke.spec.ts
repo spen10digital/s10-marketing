@@ -51,12 +51,14 @@ test('sign-out only accepts POST', async ({ request }) => {
   expect(res.status()).toBe(405);
 });
 
-// Full flow against a deployed dev environment with a dedicated Cognito test user:
+// Full flow against a deployed dev environment with a dedicated throwaway Suite test user (a Suite account with S10/Marketing on):
 //   E2E_BASE_URL=https://… E2E_EMAIL=… E2E_PASSWORD=… pnpm test:e2e
 test.describe('signed in (dev environment only)', () => {
   test.skip(!process.env.E2E_EMAIL || !process.env.E2E_PASSWORD, 'needs E2E_EMAIL / E2E_PASSWORD');
 
-  test('sign in → create organization if needed → create brand → save voice', async ({ page }) => {
+  test('sign in through the Suite → organization created on first use → create brand → save voice', async ({
+    page,
+  }) => {
     await page.goto('/dashboard');
     await page.getByLabel(/email/i).first().fill(process.env.E2E_EMAIL!);
     await page
@@ -70,12 +72,8 @@ test.describe('signed in (dev environment only)', () => {
       .first()
       .click();
 
-    await page.waitForURL(/\/(dashboard|orgs\/new)/, { timeout: 60_000 });
-    if (page.url().includes('/orgs/new')) {
-      await page.getByLabel('Organization name').fill('E2E Org');
-      await page.getByRole('button', { name: 'Create organization' }).click();
-      await page.waitForURL(/\/dashboard/);
-    }
+    // The organization is the Suite account and is created on first use (no organization form).
+    await page.waitForURL(/\/dashboard/, { timeout: 60_000 });
 
     const name = `E2E Brand ${Date.now()}`;
     await page.goto('/brands/new');

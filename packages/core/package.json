@@ -10,7 +10,7 @@
     "./errors": "./src/errors/app-error.ts",
     "./db": "./src/db/index.ts",
     "./domain": "./src/domain/index.ts",
-    "./auth": "./src/auth/oauth.ts",
+    "./auth": "./src/auth/index.ts",
     "./ai": "./src/ai/index.ts",
     "./ai/client": "./src/ai/client.ts",
     "./sources": "./src/sources/index.ts",
@@ -26,6 +26,7 @@
     "@aws-sdk/client-secrets-manager": "^3.1161.0",
     "@aws-sdk/client-ssm": "^3.1161.0",
     "drizzle-orm": "^0.45.4",
+    "jose": "^6.2.18",
     "pg": "^8.23.1",
     "zod": "^4.1.12"
   },

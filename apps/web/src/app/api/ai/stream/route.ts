@@ -22,9 +22,26 @@ export async function POST(req: Request): Promise<Response> {
   if (!req.headers.get('content-type')?.startsWith('application/json') || !sameOrigin(req)) {
     return json(403, { ok: false, error: { code: 'FORBIDDEN', message: 'Forbidden.' } });
   }
-  const actor = await getOrgActorForApi();
-  if (!actor)
+  const resolved = await getOrgActorForApi();
+  if (!resolved.ok) {
+    if (resolved.reason === 'suite-unavailable') {
+      return json(503, {
+        ok: false,
+        error: {
+          code: 'UPSTREAM_UNAVAILABLE',
+          message: 'We can’t check your access right now. Please try again shortly.',
+        },
+      });
+    }
+    if (resolved.reason === 'no-access') {
+      return json(403, {
+        ok: false,
+        error: { code: 'FORBIDDEN', message: 'S10/Marketing isn’t available for this account.' },
+      });
+    }
     return json(401, { ok: false, error: { code: 'UNAUTHENTICATED', message: 'Please sign in again.' } });
+  }
+  const actor = resolved.actor;
 
   const parsed = body.safeParse(await req.json().catch(() => null));
   if (!parsed.success)

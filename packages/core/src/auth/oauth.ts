@@ -21,7 +21,7 @@ const base64url = (buf: Buffer) => buf.toString('base64url');
 export function createPkce() {
   const verifier = base64url(randomBytes(32));
   const challenge = base64url(createHash('sha256').update(verifier).digest());
-  return { verifier, challenge, state: base64url(randomBytes(24)) };
+  return { verifier, challenge, state: base64url(randomBytes(24)), nonce: base64url(randomBytes(24)) };
 }
 
 export function domainHost(domain: string): string {
@@ -30,7 +30,7 @@ export function domainHost(domain: string): string {
 
 export function authorizeUrl(
   config: CognitoClientConfig,
-  params: { state: string; challenge: string; screen: 'login' | 'signup' },
+  params: { state: string; challenge: string; nonce: string; screen: 'login' | 'signup' },
 ): string {
   // /signup opens the managed sign-up page directly; it accepts the same parameters.
   const path = params.screen === 'signup' ? 'signup' : 'oauth2/authorize';
@@ -41,6 +41,7 @@ export function authorizeUrl(
     redirect_uri: config.redirectUri,
     scope: OAUTH_SCOPES,
     state: params.state,
+    nonce: params.nonce,
     code_challenge: params.challenge,
     code_challenge_method: 'S256',
   }).toString();
@@ -131,27 +132,5 @@ export function safeReturnTo(value: string | null | undefined, fallback = '/dash
     return `${url.pathname}${url.search}`;
   } catch {
     return fallback;
-  }
-}
-
-/** Short-lived cookie payload carrying the PKCE verifier and state between login and callback. */
-export const oauthTransaction = z.object({
-  state: z.string().min(16),
-  verifier: z.string().min(43),
-  returnTo: z.string(),
-});
-export type OAuthTransaction = z.infer<typeof oauthTransaction>;
-
-export function encodeOAuthTransaction(tx: OAuthTransaction): string {
-  return Buffer.from(JSON.stringify(tx)).toString('base64url');
-}
-
-export function decodeOAuthTransaction(value: string | undefined): OAuthTransaction | null {
-  if (!value) return null;
-  try {
-    const parsed = oauthTransaction.safeParse(JSON.parse(Buffer.from(value, 'base64url').toString('utf8')));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
   }
 }
