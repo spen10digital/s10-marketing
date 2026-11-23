@@ -8,6 +8,7 @@ import { readPrefs } from '@/lib/theme';
 import { getCognitoSettings } from '@/server/auth/cognito';
 import { getDb } from '@/server/db';
 import { getOrgContext } from '@/server/org-context';
+import { roleLabel } from '@/components/app-shell/workspace-nav';
 import { getSuiteClient } from '@/server/suite';
 
 export const dynamic = 'force-dynamic';
@@ -75,6 +76,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       mode={look?.mode}
       searchGroups={searchGroups}
       brandNames={Object.fromEntries(brands.map((b) => [b.slug, b.name]))}
+      brands={brands.map((b) => ({ slug: b.slug, name: b.name }))}
+      roleLabel={current ? roleLabel(current.role) : ''}
     >
       {children}
     </AppFrame>

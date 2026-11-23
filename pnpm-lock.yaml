@@ -75,8 +75,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       '@spen10digital/s10-ui':
-        specifier: 0.2.3
-        version: 0.2.3(react@19.3.1)(tailwindcss@4.3.3)
+        specifier: 0.2.5
+        version: 0.2.5(react@19.3.1)(tailwindcss@4.3.3)
       '@vercel/functions':
         specifier: ^3.10.5
         version: 3.10.5(@aws-sdk/credential-provider-web-identity@3.972.86)
@@ -915,14 +915,11 @@ packages:
     resolution: {integrity: sha512-r7jh49VJxGerfAcTQA6gXcKc+98zOp/tqRwzYjgOE+iSQsP6cEU1hq2QzbuipmP68QtYdY9wKEhiCQZIzHgZ4Q==}
     engines: {node: '>=18.0.0'}
 
-  '@spen10digital/s10-ui@0.2.3':
-    resolution: {integrity: sha512-vDjmvlBkcxqJcup+C8bSj526iGip0TaG6FWkTrSLRIjSwSdKV8pibLvv2SRLhlARUZnbzDyMCQPE3rYCbTX6Fg==, tarball: https://npm.pkg.github.com/download/@spen10digital/s10-ui/0.2.3/92934a140068a0115c9fedd30878c3cf5166ee2a}
+  '@spen10digital/s10-ui@0.2.5':
+    resolution: {integrity: sha512-Mv6L71K2W23s6sWW2lYSzQx+tc+/gIoZLrESMoTdOH6+wIyy9s1ZnV5zDFIlIq+jyqrie0DQlHVW9DO955X8Hg==, tarball: https://npm.pkg.github.com/download/@spen10digital/s10-ui/0.2.5/1a9b6fc7129f538ee7b9092d383dcdee750a9410}
     peerDependencies:
       react: '>=19'
       tailwindcss: '>=4'
-    peerDependenciesMeta:
-      tailwindcss:
-        optional: true
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -2953,10 +2950,9 @@ snapshots:
     dependencies:
       tslib: 2.9.1
 
-  '@spen10digital/s10-ui@0.2.3(react@19.3.1)(tailwindcss@4.3.3)':
+  '@spen10digital/s10-ui@0.2.5(react@19.3.1)(tailwindcss@4.3.3)':
     dependencies:
       react: 19.3.1
-    optionalDependencies:
       tailwindcss: 4.3.3
 
   '@standard-schema/spec@1.1.0': {}

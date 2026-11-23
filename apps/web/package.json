@@ -14,7 +14,7 @@
     "@aws-sdk/client-cloudwatch": "^3.1161.0",
     "@aws-sdk/client-ssm": "^3.1161.0",
     "@s10/core": "workspace:*",
-    "@spen10digital/s10-ui": "0.2.3",
+    "@spen10digital/s10-ui": "0.2.5",
     "@vercel/functions": "^3.10.5",
     "aws-jwt-verify": "^5.2.1",
     "clsx": "^2.1.1",

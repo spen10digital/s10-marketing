@@ -6,6 +6,7 @@ import type { SuiteApps } from '@s10/core/suite';
 import { AppNav } from './app-nav';
 import { AppTopBar } from './app-top-bar';
 import { OrgSwitcher } from './org-switcher';
+import { BrandWorkspaceSwitcher } from './workspace-switcher';
 
 /** "Mail" → "S10/Mail" (naming rule: every app is S10/appname). */
 export function fullAppName(displayName: string): string {
@@ -49,6 +50,8 @@ export function AppFrame({
   mode,
   searchGroups,
   brandNames,
+  brands,
+  roleLabel,
   children,
 }: {
   appId: string;
@@ -61,6 +64,10 @@ export function AppFrame({
   mode?: 'light' | 'dark' | 'system';
   searchGroups: TopBarSearchGroup[];
   brandNames: Record<string, string>;
+  /** The brands (Suite businesses) this person can see, for the workspace switcher. */
+  brands: { slug: string; name: string }[];
+  /** The person's role in the organization, shown under each workspace. */
+  roleLabel: string;
   children: ReactNode;
 }) {
   return (
@@ -68,7 +75,16 @@ export function AppFrame({
       rail={<AppRail apps={railApps(apps, suiteUrl, appId)} currentAppId={appId} homeHref={suiteUrl} />}
       sidebar={
         <AppNav
-          header={orgs.length > 1 ? <OrgSwitcher orgs={orgs} currentOrgId={currentOrgId} /> : undefined}
+          header={
+            <div className="flex flex-col gap-2">
+              {orgs.length > 1 ? <OrgSwitcher orgs={orgs} currentOrgId={currentOrgId} /> : null}
+              <BrandWorkspaceSwitcher
+                brands={brands}
+                roleLabel={roleLabel}
+                newWorkspaceHref={`${suiteUrl}/businesses`}
+              />
+            </div>
+          }
           footer={
             <form action="/api/auth/logout" method="post" className="px-2">
               <Button type="submit" variant="secondary" size="sm">
