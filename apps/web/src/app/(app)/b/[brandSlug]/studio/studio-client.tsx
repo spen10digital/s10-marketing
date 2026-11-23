@@ -241,7 +241,7 @@ function VariantCard({
       <CardContent className="flex flex-col gap-3 pt-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge>{variant.angle}</Badge>
-          <span className="text-xs text-muted-foreground">{[...text].length} characters</span>
+          <span className="text-xs text-muted">{[...text].length} characters</span>
         </div>
         <Textarea
           aria-label={`Draft: ${variant.angle}`}
@@ -314,7 +314,7 @@ function VariantCard({
             {saving ? 'Saving…' : 'Save draft'}
           </Button>
           {saved ? (
-            <span role="status" className="text-sm text-muted-foreground">
+            <span role="status" className="text-sm text-muted">
               {saved}
             </span>
           ) : null}
@@ -378,9 +378,9 @@ function CampaignsPanel({ brandSlug, onUse }: { brandSlug: string; onUse: (text:
             </CardHeader>
             <CardContent className="flex flex-col gap-3 text-sm">
               {c.samplePost ? (
-                <p className="whitespace-pre-line rounded-md bg-muted p-3">{c.samplePost}</p>
+                <p className="whitespace-pre-line rounded-md bg-surface-sunken p-3">{c.samplePost}</p>
               ) : null}
-              {c.rationale ? <p className="text-muted-foreground">{c.rationale}</p> : null}
+              {c.rationale ? <p className="text-muted">{c.rationale}</p> : null}
               {ideas.output ? (
                 <div>
                   <Button type="button" variant="secondary" onClick={() => onUse(`${c.name}: ${c.summary}`)}>

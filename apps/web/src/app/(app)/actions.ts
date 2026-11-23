@@ -6,7 +6,11 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { isPrefsMode, PREFS_COOKIE_SECONDS, prefsCookieValue, SuiteUnavailableError } from '@s10/core/suite';
+import { isThemeId } from '@/lib/theme';
 import { getCognitoSettings } from '@/server/auth/cognito';
+import { requireSession } from '@/server/auth/session';
+import { getSuiteClient } from '@/server/suite';
 import { cookieOptions } from '@/server/auth/cookies';
 import { formBlocks, formLines, formString, toActionState, type ActionState } from '@/server/action-state';
 import { getDb } from '@/server/db';
@@ -127,5 +131,25 @@ export async function savePostDraftAction(input: {
     return { status: 'success', message: 'Draft saved.', postId: post.id };
   } catch (err) {
     return toActionState(err);
+  }
+}
+
+/**
+ * Called by the top bar after the person picks a theme or light/dark: saves it in the Suite so
+ * every S10 app follows, and keeps this browser's cookie in step. The Suite being down does not
+ * undo the choice on this page (the bar already applied it); it just is not shared until saved again.
+ */
+export async function savePreferencesAction(theme: string, mode: string): Promise<void> {
+  if (!isThemeId(theme) || !isPrefsMode(mode)) return;
+  const [session, settings] = await Promise.all([requireSession('/dashboard'), getCognitoSettings()]);
+  (await cookies()).set(
+    settings.names.prefs,
+    prefsCookieValue(theme, mode),
+    cookieOptions(settings.secureCookies, PREFS_COOKIE_SECONDS),
+  );
+  try {
+    await (await getSuiteClient()).savePreferences({ accessToken: session.accessToken }, { theme, mode });
+  } catch (err) {
+    if (!(err instanceof SuiteUnavailableError)) throw err;
   }
 }

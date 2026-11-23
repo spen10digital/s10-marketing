@@ -67,7 +67,7 @@ export function VoiceWorkspace({ brandId, brandSlug, websiteUrl, saved, canEdit 
         />
       ) : null}
       {notice ? (
-        <p role="status" className="rounded-md bg-primary/10 px-3 py-2 text-sm">
+        <p role="status" className="rounded-md bg-info-surface px-3 py-2 text-sm">
           {notice}
         </p>
       ) : null}
@@ -122,9 +122,7 @@ function VoiceAssistant({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Brand Voice assistant</h3>
-        <p className="text-xs text-muted-foreground">
-          Suggestions only. Nothing is saved until you save a new version.
-        </p>
+        <p className="text-xs text-muted">Suggestions only. Nothing is saved until you save a new version.</p>
       </div>
       <div role="tablist" className="flex flex-wrap gap-1">
         {tabs.map(([id, label]) => (
@@ -277,7 +275,7 @@ function VoiceAssistant({
           <div className="grid gap-3 md:grid-cols-3">
             {((samples.output ?? samples.partial ?? {}) as Partial<VoiceSamplesOutput>).samples?.map(
               (s, i) => (
-                <div key={i} className="flex flex-col gap-2 rounded-md bg-muted p-3 text-sm">
+                <div key={i} className="flex flex-col gap-2 rounded-md bg-surface-sunken p-3 text-sm">
                   {s.angle ? <Badge>{s.angle}</Badge> : null}
                   <p className="whitespace-pre-line">{s.text}</p>
                 </div>
@@ -318,7 +316,7 @@ function Proposal({
       ) : null}
       <table className="w-full table-fixed text-left text-xs">
         <thead>
-          <tr className="text-muted-foreground">
+          <tr className="text-muted">
             <th className="w-28 py-1 font-medium">Field</th>
             <th className="py-1 font-medium">Saved version</th>
             <th className="py-1 font-medium">Proposed</th>
@@ -332,10 +330,8 @@ function Proposal({
                 <th scope="row" className="py-2 font-medium">
                   {FIELD_LABELS[field]}
                 </th>
-                <td className="py-2 pr-3 whitespace-pre-line text-muted-foreground">{show(saved[field])}</td>
-                <td
-                  className={`py-2 whitespace-pre-line ${changed ? 'font-medium' : 'text-muted-foreground'}`}
-                >
+                <td className="py-2 pr-3 whitespace-pre-line text-muted">{show(saved[field])}</td>
+                <td className={`py-2 whitespace-pre-line ${changed ? 'font-medium' : 'text-muted'}`}>
                   {proposal[field] === undefined ? '…' : show(proposal[field])}
                 </td>
               </tr>
@@ -372,19 +368,17 @@ function Suggestions({
     .map((s, i) => ({ s, i }))
     .filter(({ s, i }) => !dismissed.has(i) && suggestionApplies(values, s));
   if (open.length === 0)
-    return <p className="text-sm text-muted-foreground">No (more) suggestions. The voice looks good.</p>;
+    return <p className="text-sm text-muted">No (more) suggestions. The voice looks good.</p>;
   return (
     <ul className="flex flex-col gap-2">
       {open.map(({ s, i }) => (
-        <li key={i} className="flex flex-col gap-2 rounded-md bg-muted p-3 text-sm">
+        <li key={i} className="flex flex-col gap-2 rounded-md bg-surface-sunken p-3 text-sm">
           <div className="flex items-center gap-2">
             <Badge>{FIELD_LABELS[s.field]}</Badge>
-            <span className="text-xs text-muted-foreground">
-              {s.action === 'replace' ? 'rewrite' : s.action}
-            </span>
+            <span className="text-xs text-muted">{s.action === 'replace' ? 'rewrite' : s.action}</span>
           </div>
           <p className="whitespace-pre-line">{s.value}</p>
-          <p className="text-xs text-muted-foreground">{s.reason}</p>
+          <p className="text-xs text-muted">{s.reason}</p>
           <div className="flex gap-2">
             <Button
               type="button"

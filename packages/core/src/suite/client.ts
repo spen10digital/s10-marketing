@@ -90,6 +90,22 @@ const businessSchema = z.object({
 });
 export type SuiteBusinessProfile = z.infer<typeof businessSchema>;
 
+/** `GET /api/v1/apps`: the app registry for the rail. Only what the rail needs. */
+const appsSchema = z.object({
+  account_id: z.string().nullable().optional(),
+  suite_url: z.string().optional(),
+  apps: z.array(
+    z.object({
+      app_id: z.string(),
+      display_name: z.string(),
+      url: z.string(),
+      status: z.string().optional(),
+      entitled: z.boolean(),
+    }),
+  ),
+});
+export type SuiteApps = z.infer<typeof appsSchema>;
+
 export interface SuiteClientConfig {
   suiteUrl: string;
   /** This app's registry id, sent as `X-S10-App`. */
@@ -175,6 +191,12 @@ export function createSuiteClient(config: SuiteClientConfig) {
 
     savePreferences: (who: Pick<SuiteCaller, 'accessToken'>, prefs: { theme: string; mode: string }) =>
       request('/api/v1/me/preferences', who.accessToken, preferencesSchema, { method: 'PUT', body: prefs }),
+
+    /** `/api/v1/apps`: the apps for the rail (what is open to the person, what is locked or planned). */
+    apps: (who: SuiteCaller, accountId: string) =>
+      cached('apps:' + who.sub + ':' + accountId, () =>
+        request('/api/v1/apps?account_id=' + encodeURIComponent(accountId), who.accessToken, appsSchema),
+      ),
 
     /**
      * /api/v1/businesses/<id>: the business profile. null = refused or no such business, and also when the
