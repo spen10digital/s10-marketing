@@ -104,3 +104,9 @@
 - **Scripts:** `pnpm eval:ai --env dev` (manual, costs money): variants, rewrite, samples and the injection fixture against real Bedrock, with tokens and cost.
 - **Not done (owner approval required):** enabling Bedrock model access, checking the org SCP against cross-Region inference, deploying Core + VercelAccess, migrating dev, and the manual check (`docs/runbooks/m1.3-ai-studio.md`).
 
+## 2026-11-22 — S10/Suite integration (branch `suite-integration`, local only)
+- **B1 sign-in through the Suite:** PKCE + nonce on the Suite's Cognito pool with this app's own client; sealed (`jose`) host-only session and refresh cookies; users link by verified email. Organizations are Suite accounts, created on first use (`app.sync_suite_orgs`, migration `0003_suite_link`); roles follow the Suite. The old `s10-identity` sign-in path and the create-organization page are removed. New config names: `SUITE_URL`, `S10_APP_ID`, `SUITE_SESSION_SECRET`.
+- **B2 entitlements:** `checkEntitlement()` asks the Suite first (60 s cache, 5 s timeout, fail closed, `decide()` semantics), then the existing `org_entitlements` overrides. `marketing.seats` is the only Suite limit key.
+- **B3 business seam:** brands are Suite businesses, created on first use (`app.sync_suite_brands`, migration `0004_suite_brands`); `getCurrentBusiness()` reads the Suite business profile; brands the Suite does not list for the person are hidden; manual brand creation removed. Optional `pnpm db:link-suite-ids` links older rows from an uncommitted mapping file (dry run by default).
+- **B4 shared UI:** `@spen10digital/s10-ui` 0.2.3 shell, rail, sidebar with the S10 logo, page header, top bar; theme and light/dark follow the Suite through `proxy.ts`. Dev port is now 3010.
+- Nothing pushed, deployed or migrated against AWS. Progress, tests, what is not tested and the go-live steps: `docs/phases/suite-integration.md`.

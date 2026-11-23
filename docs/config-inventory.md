@@ -25,6 +25,15 @@ Names and locations only, never values. The config loader is `packages/core/src/
 | `/s10-marketing/<env>/ai-model-fast` | `AI_MODEL_FAST` (`us.anthropic.claude-haiku-5-5`) | CoreStack (M1.3) |
 | `/s10-marketing/<env>/ai-default-monthly-budget-usd` | `AI_DEFAULT_MONTHLY_BUDGET_USD` (`10`, per org) | CoreStack (M1.3) |
 
+## S10/Suite sign-in (environment variables, set on Vercel; they override Parameter Store)
+| Name | Notes |
+|---|---|
+| `SUITE_URL` | The Suite, for example `https://suite-dev.spen10.com` or `https://suite.spen10.com` (not secret) |
+| `S10_APP_ID` | `marketing` (default; not secret) |
+| `COGNITO_USER_POOL_ID` / `COGNITO_CLIENT_ID` / `COGNITO_DOMAIN` | The Suite's pool and **this app's own client** (`login.spen10.com` in prod). Override the old `cognito-*` parameters |
+| `SUITE_SESSION_SECRET` | **Secret.** 32 random bytes, base64url, different per environment. Environment only; storage decision pending (`docs/phases/suite-integration.md` design choice 7) |
+| `NPM_TOKEN` | Install-time only: classic GitHub token with `read:packages` for `@spen10digital/s10-ui` |
+
 Not yet created: Meta, SES and Scheduler parameters arrive with their milestones (05 §5).
 
 Per-org AI limits that differ from the defaults (monthly budget, 100 AI calls/day, 20 website reads/day) live in the `org_entitlements` table, not in config (ADR 0016).
