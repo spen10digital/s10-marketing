@@ -2,10 +2,10 @@ import { and, eq } from 'drizzle-orm';
 import { DEFAULT_AI_DAILY_CALLS, DEFAULT_WEB_FETCH_DAILY } from '../ai/budget';
 import { usdToMicros } from '../ai/pricing';
 import type { DbTx } from '../db/client';
-import { brands, orgEntitlements, type OrgRole } from '../db/schema';
+import { brands, orgEntitlements, organizations, type OrgRole } from '../db/schema';
 import type { Brand } from '../domain/brands/service';
 import { getCurrentVoice, type BrandVoiceProfile } from '../domain/brands/voice';
-import { SuiteUnavailableError, type SuiteEntitlements } from './client';
+import { SuiteUnavailableError, type SuiteBusinessProfile, type SuiteEntitlements } from './client';
 import { decide, type DenialReason } from './entitlement';
 
 /**
@@ -89,8 +89,18 @@ export interface BrandKitVoiceView {
   ctaDefaults: string[];
 }
 
+export type SuiteProfileState =
+  /** The Suite business profile was read. */
+  | 'loaded'
+  /** The brand is linked to a Suite business but the Suite could not be reached: showing Marketing's own copy. */
+  | 'unavailable'
+  /** The brand is not linked to a Suite business (it is hidden from people; only the backfill script links it). */
+  | 'not-linked';
+
 export interface CurrentBusinessView {
+  /** The Suite account id once the organization is linked, else the local organization id. */
   accountId: SuiteAccountId;
+  /** The Suite business id once the brand is linked, else the local brand id. */
   businessId: SuiteBusinessId;
   orgId: OrgId;
   brandId: BrandId;
@@ -100,14 +110,19 @@ export interface CurrentBusinessView {
   websiteUrl: string | null;
   timezone: string | null;
   archived: boolean;
+  /** Marketing keeps its own brand voice data. */
   voice: BrandKitVoiceView | null;
-  source: 'local_db' | 'suite_brand_kit';
+  /** From the Suite business profile (S10/Suite owns these). */
+  contactEmail?: string | null;
+  address?: SuiteBusinessProfile['address'];
+  suiteProfile?: SuiteProfileState;
+  source: 'local_db' | 'suite_brand_kit' | 'suite_business';
 }
 
 export type BrandRecordForBusiness = Pick<
   Brand,
   'id' | 'orgId' | 'name' | 'slug' | 'description' | 'websiteUrl' | 'timezone' | 'archivedAt'
->;
+> & { suiteBusinessId?: string | null };
 
 export type VoiceRecordForBusiness = Pick<
   BrandVoiceProfile,
@@ -115,23 +130,27 @@ export type VoiceRecordForBusiness = Pick<
 >;
 
 /**
- * Pure seam resolver converting a local `brands` + `brand_voice_profiles` pair (or future Suite
- * Brand Kit payload) into the canonical `CurrentBusinessView`.
+ * Pure seam resolver converting a local `brands` + `brand_voice_profiles` pair, plus (when the
+ * brand is linked) the Suite business profile, into the canonical `CurrentBusinessView`. The
+ * Suite owns the business name, website, contact and address; Marketing owns everything else.
  */
 export function resolveCurrentBusiness(
   brand: BrandRecordForBusiness,
   voice: VoiceRecordForBusiness | null = null,
-  source: 'local_db' | 'suite_brand_kit' = 'local_db',
+  source: CurrentBusinessView['source'] = 'local_db',
+  suite?: { accountId: string | null; profile: SuiteBusinessProfile | null },
 ): CurrentBusinessView {
+  const profile = suite?.profile ?? null;
+  const linked = Boolean(brand.suiteBusinessId);
   return {
-    accountId: brand.orgId,
-    businessId: brand.id,
+    accountId: suite?.accountId ?? brand.orgId,
+    businessId: brand.suiteBusinessId ?? brand.id,
     orgId: brand.orgId,
     brandId: brand.id,
-    name: brand.name,
+    name: profile?.name ?? brand.name,
     slug: brand.slug,
     description: brand.description ?? null,
-    websiteUrl: brand.websiteUrl ?? null,
+    websiteUrl: profile?.website ?? brand.websiteUrl ?? null,
     timezone: brand.timezone ?? null,
     archived: brand.archivedAt !== null,
     voice: voice
@@ -146,20 +165,39 @@ export function resolveCurrentBusiness(
           ctaDefaults: [...voice.ctaDefaults],
         }
       : null,
-    source,
+    ...(suite
+      ? {
+          contactEmail: profile?.contact_email ?? null,
+          address: profile?.address ?? null,
+          suiteProfile: (profile ? 'loaded' : linked ? 'unavailable' : 'not-linked') as SuiteProfileState,
+        }
+      : {}),
+    source: profile ? 'suite_business' : source,
   };
 }
 
+export interface BusinessSeamDeps {
+  tx: DbTx;
+  /**
+   * The Suite business profile as the signed-in person (null when refused; throws
+   * SuiteUnavailableError when the Suite cannot answer).
+   */
+  business?: (suiteBusinessId: string) => Promise<SuiteBusinessProfile | null>;
+}
+
 /**
- * Server-side Business & Brand Kit seam (`s10-marketing.md` §5.2).
- * Today reads Marketing's own `brands` and `brand_voice_profiles` tables under RLS;
- * in Phase 3 this swaps to the Suite Brand Kit API (`/api/v1/brands`).
+ * Server-side Business & Brand Kit seam (`s10-marketing.md` §5.2). Reads Marketing's own `brands`
+ * and `brand_voice_profiles` under RLS and, for a brand linked to a Suite business, the Suite
+ * business profile (name, website, contact, address). It decides nothing and writes nothing:
+ * when the Suite cannot be reached the view falls back to Marketing's own copy and says so in
+ * `suiteProfile: 'unavailable'`. Who may use the business is `checkEntitlement`'s job.
  */
 export async function getCurrentBusiness(
-  tx: DbTx,
+  deps: BusinessSeamDeps,
   orgId: OrgId,
   lookup: { brandId: BrandId } | { slug: string },
 ): Promise<CurrentBusinessView | null> {
+  const { tx } = deps;
   const condition =
     'brandId' in lookup
       ? and(eq(brands.orgId, orgId), eq(brands.id, lookup.brandId))
@@ -167,9 +205,25 @@ export async function getCurrentBusiness(
   const [brand] = await tx.select().from(brands).where(condition);
   if (!brand) return null;
   const voice = await getCurrentVoice(tx, orgId, brand.id);
-  return resolveCurrentBusiness(brand, voice, 'local_db');
-}
+  if (!deps.business) return resolveCurrentBusiness(brand, voice, 'local_db');
 
+  const [org] = await tx
+    .select({ suiteAccountId: organizations.suiteAccountId })
+    .from(organizations)
+    .where(eq(organizations.id, orgId));
+  let profile: SuiteBusinessProfile | null = null;
+  if (brand.suiteBusinessId) {
+    try {
+      profile = await deps.business(brand.suiteBusinessId);
+    } catch (err) {
+      if (!(err instanceof SuiteUnavailableError)) throw err;
+    }
+  }
+  return resolveCurrentBusiness(brand, voice, 'local_db', {
+    accountId: org?.suiteAccountId ?? null,
+    profile,
+  });
+}
 export type MarketingEntitlementKey =
   /** May this person use S10/Marketing here at all (plan, seat, role, business). */
   | 'app.access'

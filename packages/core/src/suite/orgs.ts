@@ -1,10 +1,10 @@
 import type { Database } from '../db/client';
 import type { OrgSummary } from '../domain/orgs/service';
 import { SuiteUnavailableError, type SuiteClient, type SuiteMe } from './client';
-import { accountsToSync, syncSuiteOrganizations, type SyncAccount } from './tenancy';
+import { accountsToSync, syncSuiteTenancy, type SyncAccount } from './tenancy';
 
 export type OrgResolution =
-  | { state: 'ok'; me: SuiteMe; orgs: OrgSummary[] }
+  | { state: 'ok'; me: SuiteMe; orgs: OrgSummary[]; accounts: SyncAccount[] }
   /** The Suite could not be reached or gave an unusable answer. Nothing was read or written. */
   | { state: 'suite-unavailable' }
   /** The Suite refused this person's token. Nothing was written. */
@@ -26,7 +26,7 @@ export const SYNC_REUSE_MS = 5 * 60 * 1000;
  * organization is created, no membership is changed or removed, and no stale membership is read.
  */
 export function createOrgResolver(options: OrgResolverOptions) {
-  const sync = options.sync ?? syncSuiteOrganizations;
+  const sync = options.sync ?? syncSuiteTenancy;
   const now = options.now ?? Date.now;
   const last = new Map<string, { fingerprint: string; at: number; orgs: OrgSummary[] }>();
 
@@ -51,11 +51,11 @@ export function createOrgResolver(options: OrgResolverOptions) {
       const fingerprint = JSON.stringify(accounts);
       const known = last.get(args.userId);
       if (known && known.fingerprint === fingerprint && now() - known.at < SYNC_REUSE_MS) {
-        return { state: 'ok', me, orgs: known.orgs };
+        return { state: 'ok', me, orgs: known.orgs, accounts };
       }
       const orgs = await sync(args.db, args.userId, accounts);
       last.set(args.userId, { fingerprint, at: now(), orgs });
-      return { state: 'ok', me, orgs };
+      return { state: 'ok', me, orgs, accounts };
     },
     /** For tests and sign-out. */
     forget: () => last.clear(),

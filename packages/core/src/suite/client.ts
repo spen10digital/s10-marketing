@@ -71,6 +71,25 @@ const preferencesSchema = z.object({
 });
 export type SuitePreferences = z.infer<typeof preferencesSchema>;
 
+const addressSchema = z.object({
+  line1: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  region: z.string().nullable().optional(),
+  postal_code: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+});
+
+/** GET /api/v1/businesses/<id>: the business profile the Suite owns (website, contact, address). */
+const businessSchema = z.object({
+  business_id: z.string(),
+  account_id: z.string(),
+  name: z.string(),
+  website: z.string().nullable().optional(),
+  contact_email: z.string().nullable().optional(),
+  address: addressSchema.nullable().optional(),
+});
+export type SuiteBusinessProfile = z.infer<typeof businessSchema>;
+
 export interface SuiteClientConfig {
   suiteUrl: string;
   /** This app's registry id, sent as `X-S10-App`. */
@@ -156,6 +175,20 @@ export function createSuiteClient(config: SuiteClientConfig) {
 
     savePreferences: (who: Pick<SuiteCaller, 'accessToken'>, prefs: { theme: string; mode: string }) =>
       request('/api/v1/me/preferences', who.accessToken, preferencesSchema, { method: 'PUT', body: prefs }),
+
+    /**
+     * /api/v1/businesses/<id>: the business profile. null = refused or no such business, and also when the
+     * Suite answered about a different business than asked (never trust a mismatched answer).
+     */
+    business: (who: SuiteCaller, businessId: string) =>
+      cached('business:' + who.sub + ':' + businessId, async () => {
+        const profile = await request(
+          `/api/v1/businesses/${encodeURIComponent(businessId)}`,
+          who.accessToken,
+          businessSchema,
+        );
+        return profile && profile.business_id === businessId ? profile : null;
+      }),
 
     /** For tests. */
     clearCache: () => cache.clear(),

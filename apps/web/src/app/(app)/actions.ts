@@ -1,7 +1,7 @@
 'use server';
 
 import { withDbContext } from '@s10/core/db';
-import { createBrand, createPostDraft, saveVoice, setBrandArchived, updateBrand } from '@s10/core/domain';
+import { createPostDraft, saveVoice, setBrandArchived, updateBrand } from '@s10/core/domain';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -10,7 +10,8 @@ import { getCognitoSettings } from '@/server/auth/cognito';
 import { cookieOptions } from '@/server/auth/cookies';
 import { formBlocks, formLines, formString, toActionState, type ActionState } from '@/server/action-state';
 import { getDb } from '@/server/db';
-import { getOrgContext, requireOrgActor } from '@/server/org-context';
+import { requireBrandById } from '@/server/business';
+import { getOrgContext } from '@/server/org-context';
 
 const ORG_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
@@ -41,28 +42,14 @@ function brandFields(form: FormData) {
   };
 }
 
-export async function createBrandAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  let slug: string;
-  try {
-    const actor = await requireOrgActor({ write: true });
-    const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
-      createBrand(tx, actor, brandFields(form)),
-    );
-    slug = brand.slug;
-  } catch (err) {
-    return toActionState(err);
-  }
-  revalidatePath('/dashboard');
-  redirect(`/b/${slug}`);
-}
-
 export async function updateBrandAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   let slug: string;
   try {
-    const actor = await requireOrgActor({ write: true });
     const brandId = z.uuid().parse(formString(form, 'brandId'));
+    const { actor, brand: current } = await requireBrandById(brandId, { write: true });
+    // The Suite owns the business name; this form cannot change it.
     const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
-      updateBrand(tx, actor, brandId, brandFields(form)),
+      updateBrand(tx, actor, brandId, { ...brandFields(form), name: current.name }),
     );
     slug = brand.slug;
   } catch (err) {
@@ -75,8 +62,8 @@ export async function updateBrandAction(_prev: ActionState, form: FormData): Pro
 }
 
 export async function setBrandArchivedAction(form: FormData): Promise<void> {
-  const actor = await requireOrgActor({ write: true });
   const brandId = z.uuid().parse(formString(form, 'brandId'));
+  const { actor } = await requireBrandById(brandId, { write: true });
   const archived = formString(form, 'archived') === 'true';
   const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
     setBrandArchived(tx, actor, brandId, archived),
@@ -88,8 +75,8 @@ export async function setBrandArchivedAction(form: FormData): Promise<void> {
 export async function saveVoiceAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   let slug: string;
   try {
-    const actor = await requireOrgActor({ write: true });
     const brandId = z.uuid().parse(formString(form, 'brandId'));
+    const { actor } = await requireBrandById(brandId, { write: true });
     const expectedVersion = z.coerce.number().int().min(0).parse(formString(form, 'expectedVersion'));
     slug = z.string().parse(formString(form, 'brandSlug'));
     await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
@@ -126,7 +113,7 @@ export async function savePostDraftAction(input: {
   aiGenerationId?: string | null;
 }): Promise<ActionState & { postId?: string }> {
   try {
-    const actor = await requireOrgActor({ write: true });
+    const { actor } = await requireBrandById(z.uuid().parse(input.brandId), { write: true });
     const post = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
       createPostDraft(tx, actor, {
         brandId: input.brandId,

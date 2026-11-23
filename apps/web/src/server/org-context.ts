@@ -1,7 +1,7 @@
 import 'server-only';
 import { getCurrentUserProfile, type OrgActor, type OrgSummary } from '@s10/core/domain';
 import { withDbContext } from '@s10/core/db';
-import { createOrgResolver, type DenialReason, type SuiteMe } from '@s10/core/suite';
+import { createOrgResolver, visibleBusinessIds, type DenialReason, type SuiteMe } from '@s10/core/suite';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
@@ -28,6 +28,8 @@ export interface OrgContext {
   /** Organizations (Suite accounts) where this app is on for the person. Empty unless `suite` is 'ok'. */
   orgs: OrgSummary[];
   current: OrgSummary | null;
+  /** Suite business ids the person may see in the current organization; a brand outside this set is hidden. */
+  visibleBusinessIds: Set<string>;
 }
 
 let resolver: { appId: string; value: ReturnType<typeof createOrgResolver> } | undefined;
@@ -55,7 +57,15 @@ export const getOrgContext = cache(async (): Promise<OrgContext> => {
     sub: session.subject,
   });
   if (result.state !== 'ok') {
-    return { session, email: session.email ?? null, suite: result.state, me: null, orgs: [], current: null };
+    return {
+      session,
+      email: session.email ?? null,
+      suite: result.state,
+      me: null,
+      orgs: [],
+      current: null,
+      visibleBusinessIds: new Set(),
+    };
   }
   const email =
     session.email ??
@@ -64,7 +74,15 @@ export const getOrgContext = cache(async (): Promise<OrgContext> => {
     null;
   const preferred = (await cookies()).get(settings.names.currentOrg)?.value;
   const current = result.orgs.find((o) => o.id === preferred) ?? result.orgs[0] ?? null;
-  return { session, email, suite: 'ok', me: result.me, orgs: result.orgs, current };
+  return {
+    session,
+    email,
+    suite: 'ok',
+    me: result.me,
+    orgs: result.orgs,
+    current,
+    visibleBusinessIds: visibleBusinessIds(result.accounts, current?.suiteAccountId ?? null),
+  };
 });
 
 export interface ActorOptions {

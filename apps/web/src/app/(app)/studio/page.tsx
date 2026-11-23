@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { withDbContext } from '@s10/core/db';
 import { listBrands } from '@s10/core/domain';
+import { filterVisibleBrands } from '@s10/core/suite';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDb } from '@/server/db';
-import { requireOrgActor } from '@/server/org-context';
+import { getOrgContext, requireOrgActor } from '@/server/org-context';
 
 export const metadata: Metadata = { title: 'Studio' };
 export const dynamic = 'force-dynamic';
@@ -13,8 +14,10 @@ export const dynamic = 'force-dynamic';
 /** The Studio works per brand: go straight there when there is one, otherwise pick. */
 export default async function StudioIndexPage() {
   const actor = await requireOrgActor();
-  const brands = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
-    listBrands(tx, actor.orgId),
+  const { visibleBusinessIds } = await getOrgContext();
+  const brands = filterVisibleBrands(
+    await withDbContext(await getDb(), { userId: actor.userId }, (tx) => listBrands(tx, actor.orgId)),
+    visibleBusinessIds,
   );
   if (brands.length === 1) redirect(`/b/${brands[0]!.slug}/studio`);
 
@@ -23,11 +26,11 @@ export default async function StudioIndexPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Studio</h1>
       {brands.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Create a brand on the{' '}
+          Add a business in S10/Suite and turn S10/Marketing on for it. It shows up on the{' '}
           <Link href="/dashboard" className="underline">
             dashboard
           </Link>{' '}
-          first.
+          as a brand.
         </p>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">

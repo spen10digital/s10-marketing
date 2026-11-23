@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { createBrandAction, updateBrandAction } from '@/app/(app)/actions';
+import { updateBrandAction } from '@/app/(app)/actions';
 import { SubmitButton } from '@/components/ui/button';
 import { Field, FormMessage, Input, Textarea } from '@/components/ui/form';
 import { TimeZoneSelect } from '@/components/time-zone-select';
@@ -16,47 +16,45 @@ export interface BrandFormValues {
   timezone: string | null;
 }
 
-/** Create (no `brand`) or edit a brand's details. */
+/** Edit a brand's details. The name, website, contact and address belong to the Suite business. */
 export function BrandForm({
   brand,
   timeZones,
   orgTimeZone,
   disabled,
 }: {
-  brand?: BrandFormValues;
+  brand: BrandFormValues;
   timeZones: string[];
   orgTimeZone: string;
   disabled?: boolean;
 }) {
-  const [state, action] = useActionState(brand ? updateBrandAction : createBrandAction, idle);
+  const [state, action] = useActionState(updateBrandAction, idle);
   const err = state.fieldErrors ?? {};
 
   return (
     <form action={action} className="flex flex-col gap-4">
       <FormMessage status={state.status} message={state.message} />
-      {brand ? <input type="hidden" name="brandId" value={brand.id} /> : null}
+      <input type="hidden" name="brandId" value={brand.id} />
       <fieldset disabled={disabled} className="flex flex-col gap-4">
-        <Field label="Brand name" htmlFor="name" error={err.name}>
-          <Input
-            id="name"
-            name="name"
-            required
-            maxLength={120}
-            defaultValue={brand?.name}
-            placeholder="e.g. Loot Goblin Labs"
-          />
+        <Field
+          label="Brand name"
+          htmlFor="name"
+          hint="The name comes from your business in S10/Suite. Change it there."
+          error={err.name}
+        >
+          <Input id="name" name="name" readOnly maxLength={120} defaultValue={brand.name} />
         </Field>
         <Field
           label="URL name"
           htmlFor="slug"
-          hint={brand ? 'Changing this changes the brand’s links.' : 'Optional; generated from the name.'}
+          hint="Changing this changes the brand’s links."
           error={err.slug}
         >
           <Input
             id="slug"
             name="slug"
             maxLength={64}
-            defaultValue={brand?.slug}
+            defaultValue={brand.slug}
             placeholder="loot-goblin-labs"
             pattern="[a-z0-9]+(-[a-z0-9]+)*"
           />
@@ -66,7 +64,7 @@ export function BrandForm({
             id="description"
             name="description"
             maxLength={2000}
-            defaultValue={brand?.description ?? ''}
+            defaultValue={brand.description ?? ''}
           />
         </Field>
         <Field label="Website" htmlFor="websiteUrl" error={err.websiteUrl}>
@@ -75,7 +73,7 @@ export function BrandForm({
             name="websiteUrl"
             type="url"
             maxLength={2048}
-            defaultValue={brand?.websiteUrl ?? ''}
+            defaultValue={brand.websiteUrl ?? ''}
             placeholder="https://"
           />
         </Field>
@@ -84,14 +82,12 @@ export function BrandForm({
             id="timezone"
             name="timezone"
             zones={timeZones}
-            defaultValue={brand?.timezone ?? ''}
+            defaultValue={brand.timezone ?? ''}
             allowEmpty={`Organization default (${orgTimeZone.replace(/_/g, ' ')})`}
           />
         </Field>
         <div>
-          <SubmitButton pendingLabel={brand ? 'Saving…' : 'Creating…'}>
-            {brand ? 'Save details' : 'Create brand'}
-          </SubmitButton>
+          <SubmitButton pendingLabel="Saving…">Save details</SubmitButton>
         </div>
       </fieldset>
     </form>

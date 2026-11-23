@@ -5,7 +5,8 @@ import { AppError, toErrorResult } from '@s10/core/errors';
 import { DECISION_MESSAGES } from '@s10/core/suite';
 import { z } from 'zod';
 import { getStudioDeps } from '@/server/ai';
-import { getOrgActorForApi } from '@/server/org-context';
+import { checkBrandAccess } from '@/server/business';
+import { getOrgActorForApi, getOrgContext } from '@/server/org-context';
 
 // Calls Bedrock: Node.js runtime, and long enough for a full Sonnet generation (02 §5, ADR 0017).
 export const runtime = 'nodejs';
@@ -53,6 +54,20 @@ export async function POST(req: Request): Promise<Response> {
     getBrandBySlug(tx, actor.orgId, parsed.data.brandSlug),
   );
   if (!brand) return json(404, { ok: false, error: { code: 'NOT_FOUND', message: 'Brand not found.' } });
+  // The brand is a Suite business: it must be one the Suite lists for this person, and the check runs for it.
+  const access = await checkBrandAccess(await getOrgContext(), brand, { write: true });
+  if (!access.ok) {
+    if (access.reason === 'hidden') {
+      return json(404, { ok: false, error: { code: 'NOT_FOUND', message: 'Brand not found.' } });
+    }
+    if (access.reason === 'suite-unavailable') {
+      return json(503, {
+        ok: false,
+        error: { code: 'UPSTREAM_UNAVAILABLE', message: DECISION_MESSAGES['suite-unavailable'] },
+      });
+    }
+    return json(403, { ok: false, error: { code: 'FORBIDDEN', message: DECISION_MESSAGES[access.reason] } });
+  }
 
   const abort = new AbortController();
   req.signal.addEventListener('abort', () => abort.abort());

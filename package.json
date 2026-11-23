@@ -19,6 +19,7 @@
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:link-suite-ids": "tsx scripts/link-suite-ids.ts",
     "db:verify-context": "tsx scripts/verify-data-api-context.ts",
     "infra:synth": "pnpm --filter @s10/infra synth",
     "infra:diff": "pnpm --filter @s10/infra diff",

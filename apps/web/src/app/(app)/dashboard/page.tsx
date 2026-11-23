@@ -1,24 +1,29 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { withDbContext } from '@s10/core/db';
-import { can, listBrands } from '@s10/core/domain';
+import { listBrands } from '@s10/core/domain';
+import { filterVisibleBrands } from '@s10/core/suite';
 import { Badge } from '@/components/ui/badge';
 import { ButtonLink } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getConfig } from '@/server/config';
 import { getDb } from '@/server/db';
-import { requireOrgActor } from '@/server/org-context';
+import { getCognitoSettings } from '@/server/auth/cognito';
+import { getOrgContext, requireOrgActor } from '@/server/org-context';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+  const { suiteUrl } = await getCognitoSettings();
   const actor = await requireOrgActor();
-  const [config, brands] = await Promise.all([
+  const { visibleBusinessIds } = await getOrgContext();
+  const [config, allBrands] = await Promise.all([
     getConfig(),
     getDb().then((db) => withDbContext(db, { userId: actor.userId }, (tx) => listBrands(tx, actor.orgId))),
   ]);
-  const canCreate = can(actor.role, 'brand.create');
+  // Brands are Suite businesses: show only those the Suite lists for this person.
+  const brands = filterVisibleBrands(allBrands, visibleBusinessIds);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -29,20 +34,19 @@ export default async function DashboardPage() {
             {actor.org.name} · you are {article(actor.org.role)} {actor.org.role}
           </p>
         </div>
-        {canCreate && brands.length > 0 ? <ButtonLink href="/brands/new">New brand</ButtonLink> : null}
       </header>
 
       {brands.length === 0 ? (
         <Card>
           <CardHeader className="items-start gap-3 p-8">
-            <CardTitle className="text-lg">No brands yet</CardTitle>
+            <CardTitle className="text-lg">No businesses yet</CardTitle>
             <CardDescription>
-              A brand holds its own voice, connected Pages and posts.{' '}
-              {canCreate
-                ? 'Add your first one to get started.'
-                : 'Ask an admin of this organization to add one.'}
+              Each business you add in S10/Suite, with S10/Marketing turned on for it, appears here as a brand
+              with its own voice, connected Pages and posts.
             </CardDescription>
-            {canCreate ? <ButtonLink href="/brands/new">Create your first brand</ButtonLink> : null}
+            <ButtonLink href={suiteUrl} prefetch={false}>
+              Open S10/Suite
+            </ButtonLink>
           </CardHeader>
         </Card>
       ) : (

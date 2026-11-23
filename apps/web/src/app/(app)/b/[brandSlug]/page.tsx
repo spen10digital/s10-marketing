@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { withDbContext } from '@s10/core/db';
-import { can, getBrandBySlug, getCurrentVoice, listVoiceVersions } from '@s10/core/domain';
+import { can, getCurrentVoice, listVoiceVersions } from '@s10/core/domain';
 import { BrandForm } from '@/app/(app)/brands/brand-form';
 import { setBrandArchivedAction } from '@/app/(app)/actions';
 import { Badge } from '@/components/ui/badge';
 import { ButtonLink } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDb } from '@/server/db';
-import { requireOrgActor } from '@/server/org-context';
+import { requireBrand } from '@/server/business';
 import { VoiceWorkspace } from './voice-workspace';
 
 export const dynamic = 'force-dynamic';
@@ -21,18 +20,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BrandPage({ params, searchParams }: Props) {
   const [{ brandSlug }, { saved }] = await Promise.all([params, searchParams]);
-  const actor = await requireOrgActor();
-  const data = await withDbContext(await getDb(), { userId: actor.userId }, async (tx) => {
-    const brand = await getBrandBySlug(tx, actor.orgId, brandSlug);
-    if (!brand) return null;
+  // The brand is a Suite business: access, visibility and the business details come from the Suite.
+  const { actor, brand, business } = await requireBrand(brandSlug);
+  const { voice, versions } = await withDbContext(await getDb(), { userId: actor.userId }, async (tx) => {
     const [voice, versions] = await Promise.all([
       getCurrentVoice(tx, actor.orgId, brand.id),
       listVoiceVersions(tx, actor.orgId, brand.id),
     ]);
-    return { brand, voice, versions };
+    return { voice, versions };
   });
-  if (!data) notFound();
-  const { brand, voice, versions } = data;
   const canEditBrand = can(actor.role, 'brand.update');
   const canEditVoice = can(actor.role, 'brand.voice.update');
 
@@ -41,7 +37,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            {brand.name}
+            {business.name}
             {brand.archivedAt ? <Badge>archived</Badge> : null}
           </h1>
           <p className="text-sm text-muted-foreground">{actor.org.name}</p>
@@ -109,7 +105,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
             </CardHeader>
             <CardContent>
               <BrandForm
-                brand={brand}
+                brand={{ ...brand, name: business.name, websiteUrl: business.websiteUrl }}
                 timeZones={Intl.supportedValuesOf('timeZone')}
                 orgTimeZone={actor.org.timezone}
                 disabled={!canEditBrand}

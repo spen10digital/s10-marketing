@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { getAiLimits, getAiUsage, microsToUsd } from '@s10/core/ai';
 import { withDbContext } from '@s10/core/db';
-import { can, getBrandBySlug, getCurrentVoice, listRecentPosts } from '@s10/core/domain';
+import { can, getCurrentVoice, listRecentPosts } from '@s10/core/domain';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getConfig } from '@/server/config';
 import { getDb } from '@/server/db';
-import { requireOrgActor } from '@/server/org-context';
+import { requireBrand } from '@/server/business';
 import { StudioClient } from './studio-client';
 
 export const dynamic = 'force-dynamic';
@@ -21,21 +20,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StudioPage({ params }: Props) {
   const { brandSlug } = await params;
-  const actor = await requireOrgActor();
+  const { actor, brand, business } = await requireBrand(brandSlug);
   const config = await getConfig();
   const data = await withDbContext(await getDb(), { userId: actor.userId }, async (tx) => {
-    const brand = await getBrandBySlug(tx, actor.orgId, brandSlug);
-    if (!brand) return null;
     const [voice, posts, usage, limits] = await Promise.all([
       getCurrentVoice(tx, actor.orgId, brand.id),
       listRecentPosts(tx, actor.orgId, brand.id, 10),
       getAiUsage(tx, actor.orgId),
       getAiLimits(tx, actor.orgId, config.AI_DEFAULT_MONTHLY_BUDGET_USD),
     ]);
-    return { brand, voice, posts, usage, limits };
+    return { voice, posts, usage, limits };
   });
-  if (!data) notFound();
-  const { brand, voice, posts, usage, limits } = data;
+  const { voice, posts, usage, limits } = data;
   const canGenerate = can(actor.role, 'ai.generate');
 
   return (
@@ -45,7 +41,7 @@ export default async function StudioPage({ params }: Props) {
           <h1 className="text-2xl font-semibold tracking-tight">Studio</h1>
           <p className="text-sm text-muted-foreground">
             <Link href={`/b/${brand.slug}`} className="hover:underline">
-              {brand.name}
+              {business.name}
             </Link>{' '}
             · drafts are saved unassigned; approval and publishing arrive in M1.5
           </p>
@@ -71,7 +67,7 @@ export default async function StudioPage({ params }: Props) {
         <StudioClient
           brandId={brand.id}
           brandSlug={brand.slug}
-          defaultLinkUrl={brand.websiteUrl ?? ''}
+          defaultLinkUrl={business.websiteUrl ?? ''}
           avoid={voice?.dontList ?? []}
         />
       ) : (
@@ -82,7 +78,7 @@ export default async function StudioPage({ params }: Props) {
         <CardHeader>
           <CardTitle>Recent drafts</CardTitle>
           <CardDescription>
-            The latest posts saved for {brand.name}. The AI avoids repeating them.
+            The latest posts saved for {business.name}. The AI avoids repeating them.
           </CardDescription>
         </CardHeader>
         <CardContent>

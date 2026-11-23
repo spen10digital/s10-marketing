@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../db/client';
 import { createSuiteClient, SuiteUnavailableError, type SuiteMe } from './client';
 import { decide } from './entitlement';
+import { resolveCurrentBusiness } from './seams';
 import { createOrgResolver, SYNC_REUSE_MS } from './orgs';
 import { accountsToSync, appActiveOn } from './tenancy';
 
@@ -214,5 +215,63 @@ describe('decide (same semantics as the template)', () => {
       reason: 'over-limit',
     });
     expect(decide(ent, 'marketing', { limitKey: 'missing' })).toMatchObject({ reason: 'not-in-plan' });
+  });
+});
+
+describe('Suite business profile', () => {
+  const profile = {
+    business_id: 'BIZ_1',
+    account_id: 'ACCT_A',
+    name: 'From Suite',
+    website: 'https://x.example.test',
+  };
+  const mk = (fetchImpl: unknown) =>
+    createSuiteClient({
+      suiteUrl: 'https://suite.example.test',
+      appId: 'marketing',
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+  it('reads the profile and refuses an answer about a different business', async () => {
+    expect((await mk(async () => json(profile)).business(caller, 'BIZ_1'))?.name).toBe('From Suite');
+    expect(
+      await mk(async () => json({ ...profile, business_id: 'OTHER' })).business(caller, 'BIZ_1'),
+    ).toBeNull();
+  });
+
+  it('fails closed when the Suite is down', async () => {
+    await expect(mk(async () => json({}, 503)).business(caller, 'BIZ_1')).rejects.toBeInstanceOf(
+      SuiteUnavailableError,
+    );
+  });
+
+  it('resolveCurrentBusiness prefers the Suite profile, keeps Marketing fields, and flags a missing profile', () => {
+    const brand = {
+      id: 'b',
+      orgId: 'o',
+      name: 'Local',
+      slug: 'local',
+      description: 'Mine',
+      websiteUrl: 'https://old.example.test',
+      timezone: 'UTC',
+      archivedAt: null,
+      suiteBusinessId: 'BIZ_1',
+    };
+    const view = resolveCurrentBusiness(brand, null, 'local_db', { accountId: 'ACCT_A', profile });
+    expect(view).toMatchObject({
+      accountId: 'ACCT_A',
+      businessId: 'BIZ_1',
+      name: 'From Suite',
+      websiteUrl: 'https://x.example.test',
+      description: 'Mine',
+      suiteProfile: 'loaded',
+    });
+    const down = resolveCurrentBusiness(brand, null, 'local_db', { accountId: 'ACCT_A', profile: null });
+    expect(down).toMatchObject({ name: 'Local', suiteProfile: 'unavailable', source: 'local_db' });
+    const unlinked = resolveCurrentBusiness({ ...brand, suiteBusinessId: null }, null, 'local_db', {
+      accountId: null,
+      profile: null,
+    });
+    expect(unlinked.suiteProfile).toBe('not-linked');
   });
 });

@@ -99,3 +99,69 @@ export async function syncSuiteOrganizations(
     role: r.o_role,
   }));
 }
+
+interface LinkedBrandRow {
+  o_brand_id: string;
+  o_suite_business_id: string;
+  o_slug: string;
+}
+
+export interface LinkedBrand {
+  brandId: string;
+  suiteBusinessId: string;
+  slug: string;
+}
+
+/**
+ * Creates (first use) the brand for each Suite business where this app is on, and keeps the
+ * name in step with the Suite. For an organization the person is a member of. Same rule as
+ * above: only call it with a real answer from the Suite.
+ */
+export async function syncSuiteBrands(
+  db: Database,
+  userId: string,
+  orgId: string,
+  businesses: SyncAccount['businesses'],
+): Promise<LinkedBrand[]> {
+  const payload = businesses.map((b) => ({
+    business_id: b.businessId,
+    name: b.name,
+    slug: slugify(b.name),
+  }));
+  const result = await withDbContext(db, { userId }, (tx) =>
+    tx.execute(sql`select * from app.sync_suite_brands(${orgId}::uuid, ${JSON.stringify(payload)}::jsonb)`),
+  );
+  return rowsOf<LinkedBrandRow>(result).map((r) => ({
+    brandId: r.o_brand_id,
+    suiteBusinessId: r.o_suite_business_id,
+    slug: r.o_slug,
+  }));
+}
+
+/** Organizations and brands for everything the Suite says this person may use here. Returns the organizations. */
+export async function syncSuiteTenancy(
+  db: Database,
+  userId: string,
+  accounts: SyncAccount[],
+): Promise<OrgSummary[]> {
+  const orgs = await syncSuiteOrganizations(db, userId, accounts);
+  for (const account of accounts) {
+    const org = orgs.find((o) => o.suiteAccountId === account.accountId);
+    if (org) await syncSuiteBrands(db, userId, org.id, account.businesses);
+  }
+  return orgs;
+}
+
+/** The Suite businesses this person may see in an account (a brand is visible only if its business is listed). */
+export function visibleBusinessIds(accounts: SyncAccount[], suiteAccountId: string | null): Set<string> {
+  const account = accounts.find((a) => a.accountId === suiteAccountId);
+  return new Set(account?.businesses.map((b) => b.businessId) ?? []);
+}
+
+/** Brands the person may see: linked to a business the Suite lists for them. Unlinked brands are hidden (fail closed). */
+export function filterVisibleBrands<T extends { suiteBusinessId: string | null }>(
+  brands: T[],
+  visible: Set<string>,
+): T[] {
+  return brands.filter((b) => b.suiteBusinessId !== null && visible.has(b.suiteBusinessId));
+}
