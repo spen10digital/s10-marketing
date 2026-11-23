@@ -1,6 +1,6 @@
 # S10/Suite integration (Suite Phase 3), progress and go-live
 
-**Status:** built locally on branch `suite-integration` (cut from `m1.3-ai-studio`), November 22, 2026. Nothing pushed, deployed or migrated against AWS. Plan: `S10Suite/docs/phases/planned-apps-plan.md` (Track B).
+**Status (updated Nov 23, 2026: deployed, see the last section):** built locally on branch `suite-integration` (cut from `m1.3-ai-studio`), November 22, 2026. Nothing pushed, deployed or migrated against AWS. Plan: `S10Suite/docs/phases/planned-apps-plan.md` (Track B).
 
 Labels: **Decided** = the owner said it (with date and where). **Proposed** = the builder's own choice, needs the owner. **Open** = a question.
 
@@ -91,3 +91,12 @@ Fail-closed coverage (builder rule 3): the Suite client throws on network error,
 - Whether `checkEntitlement()` should also gate the AI gateway's own budget checks (design choice 8).
 - Whether people removed from a business in the Suite should have their brand archived here (today it is only hidden).
 - Whether Marketing's Brand Kit reads (logos, colors, voice) arrive through a Suite Brand Kit API: the Suite has only the business profile today, so `getCurrentBusiness()` reads that.
+
+## Deployed Nov 23, 2026 (owner OK in chat at each step)
+
+- Next.js 16.4.3 to 16.4.6 (commit `de2b6c1`); 186 unit tests, typecheck, lint and the web build pass.
+- Migrations 0002 to 0004 applied to **dev** Aurora; 0001 to 0004 applied to the new **prod** Aurora. `SUITE_SESSION_SECRET` is a sensitive Vercel env var (owner chose this over Secrets Manager; it departs from the "no secrets in Vercel env vars" rule in `CLAUDE.md`).
+- Prod AWS (`s10-marketing-prod`, account `290303514558`) stood up: CDK bootstrap, then Core, Database, VercelAccess and Observability. Cicd and Identity not deployed. No alert email is subscribed yet.
+- Vercel: Production env vars set, `marketing.spen10.com` attached, project function region set to `cle1` (a deploy from the repo root had ignored `regions` in `apps/web/vercel.json` and ran in `iad1`, which failed the `AWS_REGION` check). Deployed with `vercel deploy --prod` from this worktree. The branch is pushed but **not merged**; `main` is still at M1.1 (open: via `develop` or straight to `main`).
+- Suite registry: `marketing` set to `beta`. Signed in as the owner: the dashboard opened with no second sign-in and listed five brands built from the five Suite businesses.
+- **Not tested:** logout and refresh routes against the real Suite, theme saving, the desktop layout, the brand card details (they show "No description"), and a Preview deploy (the dev Cognito client allows localhost only). No workspace switcher yet.
