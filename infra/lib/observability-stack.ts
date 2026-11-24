@@ -41,7 +41,9 @@ export class ObservabilityStack extends Stack {
 
     new budgets.CfnBudget(this, 'MonthlyCostBudget', {
       budget: {
-        budgetName: `${prefix}-monthly`,
+        // Prod's first budget was created without the email subscriber and CloudFormation cannot
+        // replace a budget that keeps its name, so prod uses a new name. Dev keeps the original.
+        budgetName: config.envName === 'prod' ? `${prefix}-monthly-v2` : `${prefix}-monthly`,
         budgetType: 'COST',
         timeUnit: 'MONTHLY',
         budgetLimit: { amount: limit, unit: 'USD' },

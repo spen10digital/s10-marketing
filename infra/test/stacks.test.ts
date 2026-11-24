@@ -159,6 +159,14 @@ describe('ObservabilityStack', () => {
     expect(thresholds).toEqual([25, 75, 150]);
     t.resourceCountIs('AWS::CE::AnomalyMonitor', 1);
   });
+
+  it('names the prod budget -v2 (a new name, so CloudFormation can replace the old one) and keeps dev as is', () => {
+    const name = (b: ReturnType<typeof synth>) =>
+      Object.values(Template.fromStack(b.observability).findResources('AWS::Budgets::Budget'))[0]!.Properties
+        .Budget.BudgetName;
+    expect(name(prod)).toBe('s10-marketing-prod-monthly-v2');
+    expect(name(dev)).toBe('s10-marketing-dev-monthly');
+  });
 });
 
 describe('VercelAccessStack', () => {
