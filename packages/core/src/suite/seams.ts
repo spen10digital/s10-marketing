@@ -149,7 +149,7 @@ export function resolveCurrentBusiness(
     brandId: brand.id,
     name: profile?.name ?? brand.name,
     slug: brand.slug,
-    description: brand.description ?? null,
+    description: profile?.description?.trim() || brand.description || null,
     websiteUrl: profile?.website ?? brand.websiteUrl ?? null,
     timezone: brand.timezone ?? null,
     archived: brand.archivedAt !== null,

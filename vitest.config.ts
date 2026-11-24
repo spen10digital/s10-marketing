@@ -4,9 +4,10 @@ export default defineConfig({
   test: {
     projects: [
       {
+        oxc: { jsx: { runtime: 'automatic' } },
         test: {
           name: 'unit',
-          include: ['packages/*/src/**/*.test.ts', 'apps/*/src/**/*.test.ts'],
+          include: ['packages/*/src/**/*.test.ts', 'apps/*/src/**/*.test.{ts,tsx}'],
           environment: 'node',
         },
       },

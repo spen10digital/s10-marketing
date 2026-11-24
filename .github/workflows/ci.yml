@@ -45,6 +45,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm test
+      - run: pnpm build
       - run: pnpm test:db
       - run: pnpm infra:synth
       - name: Playwright smoke

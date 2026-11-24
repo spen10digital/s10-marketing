@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Database } from '../db/client';
-import { createSuiteClient, SuiteUnavailableError, type SuiteMe } from './client';
+import { brandCardSummaries, type CardBrand } from './cards';
+import { createSuiteClient, SuiteUnavailableError, type SuiteBusinessProfile, type SuiteMe } from './client';
 import { decide } from './entitlement';
 import { resolveCurrentBusiness } from './seams';
 import { createOrgResolver, SYNC_REUSE_MS } from './orgs';
@@ -273,5 +274,53 @@ describe('Suite business profile', () => {
       profile: null,
     });
     expect(unlinked.suiteProfile).toBe('not-linked');
+  });
+});
+
+describe('brand cards', () => {
+  const brand = (over: Partial<CardBrand> = {}): CardBrand => ({
+    id: 'b1',
+    name: 'One',
+    description: null,
+    websiteUrl: null,
+    suiteBusinessId: 'BIZ_1',
+    ...over,
+  });
+  const profile = (over: Record<string, unknown> = {}) =>
+    ({ business_id: 'BIZ_1', account_id: 'A', name: 'One', ...over }) as SuiteBusinessProfile;
+
+  it('prefers the Suite description, then local text, then the Suite website', async () => {
+    const load = async () => profile({ description: ' From Suite ', website: 'https://one.example' });
+    expect((await brandCardSummaries([brand({ description: 'Local' })], load)).get('b1')?.summary).toBe(
+      'From Suite',
+    );
+    const noDesc = async () => profile({ website: 'https://one.example' });
+    expect((await brandCardSummaries([brand({ description: 'Local' })], noDesc)).get('b1')?.summary).toBe(
+      'Local',
+    );
+    expect((await brandCardSummaries([brand()], noDesc)).get('b1')?.summary).toBe('https://one.example');
+  });
+
+  it('falls back to local values and flags it when the Suite is unreachable (no throw)', async () => {
+    const down = async (): Promise<SuiteBusinessProfile | null> => {
+      throw new SuiteUnavailableError('down');
+    };
+    const out = await brandCardSummaries([brand({ websiteUrl: 'https://local.example' })], down);
+    expect(out.get('b1')).toEqual({ summary: 'https://local.example', suiteUnavailable: true });
+    expect((await brandCardSummaries([brand()], down)).get('b1')).toEqual({
+      summary: null,
+      suiteUnavailable: true,
+    });
+  });
+
+  it('does not ask the Suite for a brand that is not linked, and rethrows unexpected errors', async () => {
+    const load = vi.fn(async () => profile());
+    await brandCardSummaries([brand({ suiteBusinessId: null })], load);
+    expect(load).not.toHaveBeenCalled();
+    await expect(
+      brandCardSummaries([brand()], async () => {
+        throw new Error('bug');
+      }),
+    ).rejects.toThrow('bug');
   });
 });

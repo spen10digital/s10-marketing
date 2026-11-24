@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { withDbContext } from '@s10/core/db';
 import { listBrands } from '@s10/core/domain';
-import { filterVisibleBrands } from '@s10/core/suite';
+import { brandCardSummaries, filterVisibleBrands } from '@s10/core/suite';
 import { PageBody, PageHeader } from '@spen10digital/s10-ui';
 import { Badge } from '@/components/ui/badge';
 import { ButtonLink } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { getConfig } from '@/server/config';
 import { getDb } from '@/server/db';
 import { getCognitoSettings } from '@/server/auth/cognito';
 import { getOrgContext, requireOrgActor } from '@/server/org-context';
+import { getSuiteClient } from '@/server/suite';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,11 @@ export default async function DashboardPage() {
   ]);
   // Brands are Suite businesses: show only those the Suite lists for this person.
   const brands = filterVisibleBrands(allBrands, visibleBusinessIds);
+  // The line under each name comes from the Suite business profile; if the Suite cannot be asked the
+  // cards fall back to what Marketing holds and the page still renders.
+  const client = await getSuiteClient();
+  const who = { accessToken: actor.session.accessToken, sub: actor.session.subject };
+  const summaries = await brandCardSummaries(brands, (id) => client.business(who, id));
 
   return (
     <>
@@ -58,7 +64,7 @@ export default async function DashboardPage() {
                     <CardHeader>
                       <CardTitle>{b.name}</CardTitle>
                       <CardDescription className="line-clamp-2">
-                        {b.description ?? b.websiteUrl ?? 'No description'}
+                        {summaries.get(b.id)?.summary ?? 'No description yet. Add details in S10/Suite.'}
                       </CardDescription>
                     </CardHeader>
                   </Card>

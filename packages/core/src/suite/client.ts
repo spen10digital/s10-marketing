@@ -87,6 +87,8 @@ const businessSchema = z.object({
   website: z.string().nullable().optional(),
   contact_email: z.string().nullable().optional(),
   address: addressSchema.nullable().optional(),
+  /** Not sent by the Suite yet (the Brand Kit, roadmap Phase 3, will carry it); read when it appears. */
+  description: z.string().nullable().optional(),
 });
 export type SuiteBusinessProfile = z.infer<typeof businessSchema>;
 
