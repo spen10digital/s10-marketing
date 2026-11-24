@@ -1,15 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  authorizeUrl,
-  createPkce,
-  decodeOAuthTransaction,
-  encodeOAuthTransaction,
-  exchangeCode,
-  logoutUrl,
-  safeEqual,
-  safeReturnTo,
-} from './oauth';
+import { authorizeUrl, createPkce, exchangeCode, logoutUrl, safeEqual, safeReturnTo } from './oauth';
 
 const config = {
   domain: 's10-identity-dev.auth.us-east-2.amazoncognito.com',
@@ -19,9 +10,11 @@ const config = {
 
 describe('PKCE', () => {
   it('derives an S256 challenge from a high-entropy verifier', () => {
-    const { verifier, challenge, state } = createPkce();
+    const { verifier, challenge, state, nonce } = createPkce();
     expect(verifier.length).toBeGreaterThanOrEqual(43);
     expect(state.length).toBeGreaterThanOrEqual(32);
+    expect(nonce.length).toBeGreaterThanOrEqual(32);
+    expect(nonce).not.toBe(state);
     expect(challenge).toBe(createHash('sha256').update(verifier).digest('base64url'));
     expect(createPkce().verifier).not.toBe(verifier);
   });
@@ -29,7 +22,7 @@ describe('PKCE', () => {
 
 describe('authorizeUrl', () => {
   it('requests the code flow with PKCE and the registered callback', () => {
-    const url = new URL(authorizeUrl(config, { state: 's', challenge: 'c', screen: 'login' }));
+    const url = new URL(authorizeUrl(config, { state: 's', challenge: 'c', nonce: 'n', screen: 'login' }));
     expect(url.origin + url.pathname).toBe(`https://${config.domain}/oauth2/authorize`);
     expect(Object.fromEntries(url.searchParams)).toEqual({
       response_type: 'code',
@@ -37,10 +30,13 @@ describe('authorizeUrl', () => {
       redirect_uri: config.redirectUri,
       scope: 'openid email profile',
       state: 's',
+      nonce: 'n',
       code_challenge: 'c',
       code_challenge_method: 'S256',
     });
-    expect(authorizeUrl(config, { state: 's', challenge: 'c', screen: 'signup' })).toContain('/signup?');
+    expect(authorizeUrl(config, { state: 's', challenge: 'c', nonce: 'n', screen: 'signup' })).toContain(
+      '/signup?',
+    );
   });
 
   it('builds the managed-login logout URL', () => {
@@ -95,14 +91,7 @@ describe('safeReturnTo', () => {
   });
 });
 
-describe('OAuth transaction cookie', () => {
-  it('round-trips and rejects garbage', () => {
-    const tx = { state: 'x'.repeat(32), verifier: 'v'.repeat(43), returnTo: '/dashboard' };
-    expect(decodeOAuthTransaction(encodeOAuthTransaction(tx))).toEqual(tx);
-    expect(decodeOAuthTransaction('not-base64-json')).toBeNull();
-    expect(decodeOAuthTransaction(undefined)).toBeNull();
-  });
-
+describe('safeEqual', () => {
   it('compares state in constant time', () => {
     expect(safeEqual('abc', 'abc')).toBe(true);
     expect(safeEqual('abc', 'abd')).toBe(false);

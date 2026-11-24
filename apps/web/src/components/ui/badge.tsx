@@ -2,10 +2,10 @@ import type { HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 const variants = {
-  default: 'bg-muted text-muted-foreground',
-  primary: 'bg-primary/10 text-primary',
-  success: 'bg-success/15 text-success',
-  warning: 'bg-warning/20 text-foreground',
+  default: 'bg-surface-sunken text-muted',
+  primary: 'bg-info-surface text-accent',
+  success: 'bg-success-surface text-success',
+  warning: 'bg-warning-surface text-text',
 } as const;
 
 export function Badge({

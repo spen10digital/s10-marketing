@@ -12,6 +12,8 @@ export interface OrgSummary {
   slug: string;
   timezone: string;
   role: OrgRole;
+  /** The Suite account this organization is, once linked (every org created by sign-in is). */
+  suiteAccountId: string | null;
 }
 
 export const timeZoneSchema = z.string().trim().max(64).refine(isValidTimeZone, 'Unknown time zone');
@@ -31,6 +33,7 @@ export async function listMyOrganizations(tx: DbTx, userId: string): Promise<Org
       slug: organizations.slug,
       timezone: organizations.timezone,
       role: organizationMembers.role,
+      suiteAccountId: organizations.suiteAccountId,
     })
     .from(organizations)
     .innerJoin(organizationMembers, eq(organizationMembers.orgId, organizations.id))

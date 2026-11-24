@@ -61,6 +61,14 @@ export async function getBrandBySlug(tx: DbTx, orgId: string, slug: string): Pro
   return row ?? null;
 }
 
+export async function getBrandById(tx: DbTx, orgId: string, brandId: string): Promise<Brand | null> {
+  const [row] = await tx
+    .select()
+    .from(brands)
+    .where(and(eq(brands.orgId, orgId), eq(brands.id, brandId)));
+  return row ?? null;
+}
+
 export async function createBrand(tx: DbTx, actor: OrgActor, input: BrandInput): Promise<Brand> {
   assertCan(actor.role, 'brand.create');
   const data = brandInput.parse(input);

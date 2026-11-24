@@ -8,7 +8,7 @@ import type {
 import { cn } from '@/lib/utils';
 
 const control =
-  'w-full rounded-md border border-border bg-card px-3 py-2 text-sm shadow-xs outline-none transition focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 disabled:opacity-60 aria-invalid:border-danger';
+  'w-full rounded-md border border-border bg-surface-raised px-3 py-2 text-sm shadow-xs outline-none transition focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60 aria-invalid:border-danger';
 
 export function Label({ className, ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
   return <label className={cn('text-sm font-medium', className)} {...props} />;
@@ -44,7 +44,7 @@ export function Field({
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
-      {hint && !error?.length ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint && !error?.length ? <p className="text-xs text-muted">{hint}</p> : null}
       {error?.length ? (
         <p id={`${htmlFor}-error`} className="text-xs text-danger">
           {error.join(' ')}
@@ -61,7 +61,7 @@ export function FormMessage({ status, message }: { status: 'idle' | 'error' | 's
       role={status === 'error' ? 'alert' : 'status'}
       className={cn(
         'rounded-md px-3 py-2 text-sm',
-        status === 'error' ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success',
+        status === 'error' ? 'bg-danger-surface text-danger' : 'bg-success-surface text-success',
       )}
     >
       {message}

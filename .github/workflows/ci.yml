@@ -35,11 +35,17 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # @spen10digital/s10-ui is a private GitHub Packages package. pnpm 10 ignores a project .npmrc token, so the
+      # token goes in pnpm's user config (a classic token with read:packages, repo secret NPM_TOKEN).
+      - run: pnpm config set "//npm.pkg.github.com/:_authToken" "$NPM_TOKEN" --location=user
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm test
+      - run: pnpm build
       - run: pnpm test:db
       - run: pnpm infra:synth
       - name: Playwright smoke
@@ -63,6 +69,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # @spen10digital/s10-ui is a private GitHub Packages package. pnpm 10 ignores a project .npmrc token, so the
+      # token goes in pnpm's user config (a classic token with read:packages, repo secret NPM_TOKEN).
+      - run: pnpm config set "//npm.pkg.github.com/:_authToken" "$NPM_TOKEN" --location=user
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: pnpm install --frozen-lockfile
       - uses: aws-actions/configure-aws-credentials@v4
         with:

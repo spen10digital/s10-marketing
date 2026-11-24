@@ -1,57 +1,37 @@
 'use server';
 
 import { withDbContext } from '@s10/core/db';
-import {
-  createBrand,
-  createOrganization,
-  listMyOrganizations,
-  saveVoice,
-  setBrandArchived,
-  updateBrand,
-} from '@s10/core/domain';
+import { createPostDraft, saveVoice, setBrandArchived, updateBrand } from '@s10/core/domain';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { COOKIES, cookieOptions } from '@/server/auth/cookies';
+import { isPrefsMode, PREFS_COOKIE_SECONDS, prefsCookieValue, SuiteUnavailableError } from '@s10/core/suite';
+import { isThemeId } from '@/lib/theme';
+import { getCognitoSettings } from '@/server/auth/cognito';
 import { requireSession } from '@/server/auth/session';
+import { getSuiteClient } from '@/server/suite';
+import { cookieOptions } from '@/server/auth/cookies';
 import { formBlocks, formLines, formString, toActionState, type ActionState } from '@/server/action-state';
-import { getConfig } from '@/server/config';
 import { getDb } from '@/server/db';
-import { requireOrgActor } from '@/server/org-context';
+import { requireBrandById } from '@/server/business';
+import { getOrgContext } from '@/server/org-context';
 
 const ORG_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
-async function selectOrg(orgId: string) {
-  const secure = (await getConfig()).APP_URL.startsWith('https://');
-  (await cookies()).set(COOKIES.currentOrg, orgId, cookieOptions(secure, ORG_COOKIE_MAX_AGE));
-}
-
-export async function createOrganizationAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  let orgId: string;
-  try {
-    const session = await requireSession('/orgs/new');
-    orgId = await withDbContext(await getDb(), { userId: session.userId }, (tx) =>
-      createOrganization(tx, { name: formString(form, 'name'), timezone: formString(form, 'timezone') }),
-    );
-    await selectOrg(orgId);
-  } catch (err) {
-    return toActionState(err);
-  }
-  revalidatePath('/', 'layout');
-  redirect('/dashboard');
-}
-
-/** The org id comes from the form, so it is only accepted if the user is a member. */
+/** Organizations are Suite accounts and come from the Suite; the selection here is only a preference. */
 export async function switchOrganizationAction(form: FormData): Promise<void> {
-  const session = await requireSession();
+  const { orgs } = await getOrgContext();
   const orgId = z.uuid().safeParse(formString(form, 'orgId'));
   if (!orgId.success) return;
-  const orgs = await withDbContext(await getDb(), { userId: session.userId }, (tx) =>
-    listMyOrganizations(tx, session.userId),
-  );
+  // The org id comes from the form, so it is only accepted if it is one of the person's orgs.
   if (!orgs.some((o) => o.id === orgId.data)) return;
-  await selectOrg(orgId.data);
+  const settings = await getCognitoSettings();
+  (await cookies()).set(
+    settings.names.currentOrg,
+    orgId.data,
+    cookieOptions(settings.secureCookies, ORG_COOKIE_MAX_AGE),
+  );
   revalidatePath('/', 'layout');
   redirect('/dashboard');
 }
@@ -66,28 +46,14 @@ function brandFields(form: FormData) {
   };
 }
 
-export async function createBrandAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  let slug: string;
-  try {
-    const actor = await requireOrgActor();
-    const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
-      createBrand(tx, actor, brandFields(form)),
-    );
-    slug = brand.slug;
-  } catch (err) {
-    return toActionState(err);
-  }
-  revalidatePath('/dashboard');
-  redirect(`/b/${slug}`);
-}
-
 export async function updateBrandAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   let slug: string;
   try {
-    const actor = await requireOrgActor();
     const brandId = z.uuid().parse(formString(form, 'brandId'));
+    const { actor, brand: current } = await requireBrandById(brandId, { write: true });
+    // The Suite owns the business name; this form cannot change it.
     const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
-      updateBrand(tx, actor, brandId, brandFields(form)),
+      updateBrand(tx, actor, brandId, { ...brandFields(form), name: current.name }),
     );
     slug = brand.slug;
   } catch (err) {
@@ -100,8 +66,8 @@ export async function updateBrandAction(_prev: ActionState, form: FormData): Pro
 }
 
 export async function setBrandArchivedAction(form: FormData): Promise<void> {
-  const actor = await requireOrgActor();
   const brandId = z.uuid().parse(formString(form, 'brandId'));
+  const { actor } = await requireBrandById(brandId, { write: true });
   const archived = formString(form, 'archived') === 'true';
   const brand = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
     setBrandArchived(tx, actor, brandId, archived),
@@ -113,8 +79,8 @@ export async function setBrandArchivedAction(form: FormData): Promise<void> {
 export async function saveVoiceAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   let slug: string;
   try {
-    const actor = await requireOrgActor();
     const brandId = z.uuid().parse(formString(form, 'brandId'));
+    const { actor } = await requireBrandById(brandId, { write: true });
     const expectedVersion = z.coerce.number().int().min(0).parse(formString(form, 'expectedVersion'));
     slug = z.string().parse(formString(form, 'brandSlug'));
     await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
@@ -139,4 +105,51 @@ export async function saveVoiceAction(_prev: ActionState, form: FormData): Promi
   }
   revalidatePath(`/b/${slug}`);
   redirect(`/b/${slug}?saved=voice`);
+}
+
+/** Saves a Studio draft (unassigned until a Page is chosen). Called directly, not from a form. */
+export async function savePostDraftAction(input: {
+  brandId: string;
+  brandSlug: string;
+  body: string;
+  linkUrl?: string | null;
+  brief?: string | null;
+  aiGenerationId?: string | null;
+}): Promise<ActionState & { postId?: string }> {
+  try {
+    const { actor } = await requireBrandById(z.uuid().parse(input.brandId), { write: true });
+    const post = await withDbContext(await getDb(), { userId: actor.userId }, (tx) =>
+      createPostDraft(tx, actor, {
+        brandId: input.brandId,
+        body: input.body,
+        linkUrl: input.linkUrl,
+        brief: input.brief,
+        aiGenerationId: input.aiGenerationId,
+      }),
+    );
+    revalidatePath(`/b/${z.string().max(64).parse(input.brandSlug)}/studio`);
+    return { status: 'success', message: 'Draft saved.', postId: post.id };
+  } catch (err) {
+    return toActionState(err);
+  }
+}
+
+/**
+ * Called by the top bar after the person picks a theme or light/dark: saves it in the Suite so
+ * every S10 app follows, and keeps this browser's cookie in step. The Suite being down does not
+ * undo the choice on this page (the bar already applied it); it just is not shared until saved again.
+ */
+export async function savePreferencesAction(theme: string, mode: string): Promise<void> {
+  if (!isThemeId(theme) || !isPrefsMode(mode)) return;
+  const [session, settings] = await Promise.all([requireSession('/dashboard'), getCognitoSettings()]);
+  (await cookies()).set(
+    settings.names.prefs,
+    prefsCookieValue(theme, mode),
+    cookieOptions(settings.secureCookies, PREFS_COOKIE_SECONDS),
+  );
+  try {
+    await (await getSuiteClient()).savePreferences({ accessToken: session.accessToken }, { theme, mode });
+  } catch (err) {
+    if (!(err instanceof SuiteUnavailableError)) throw err;
+  }
 }

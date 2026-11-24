@@ -16,7 +16,7 @@ const bool = z
 export const configSchema = z.object({
   APP_ENV: z.enum(['local', 'dev', 'prod']),
   AWS_REGION: z.literal('us-east-2').default('us-east-2'),
-  APP_URL: z.url().default('http://localhost:3000'),
+  APP_URL: z.url().default('http://localhost:3010'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
   DATABASE_URL: z.string().optional(),
@@ -27,6 +27,12 @@ export const configSchema = z.object({
   COGNITO_USER_POOL_ID: z.string().optional(),
   COGNITO_CLIENT_ID: z.string().optional(),
   COGNITO_DOMAIN: z.string().optional(),
+  /** S10/Suite (dashboard and API), e.g. https://suite-dev.spen10.com. Sign-in uses the Suite's Cognito pool. */
+  SUITE_URL: z.url().optional(),
+  /** This app's registry id: the X-S10-App header and the prefix of its limit keys. */
+  S10_APP_ID: z.string().min(1).default('marketing'),
+  /** SECRET: 32 random bytes, base64url, seals the session cookies. Environment only, never Parameter Store. */
+  SUITE_SESSION_SECRET: z.string().optional(),
 
   META_APP_ID: z.string().optional(),
   META_LOGIN_CONFIG_ID: z.string().optional(),
@@ -47,6 +53,8 @@ export const configSchema = z.object({
   AI_MODEL_GENERATE: z.string().optional(),
   AI_MODEL_FAST: z.string().optional(),
   AI_DEFAULT_MONTHLY_BUDGET_USD: z.coerce.number().nonnegative().default(10),
+  /** `fake` (canned answers, no AWS) is for local development and tests only; see parseConfig. */
+  AI_PROVIDER: z.enum(['bedrock', 'fake']).default('bedrock'),
 
   SES_FROM_ADDRESS: z.string().optional(),
   SES_CONFIGURATION_SET: z.string().optional(),
@@ -93,6 +101,9 @@ export function parseConfig(raw: RawConfig): AppConfig {
     // Report key names only; values may be sensitive.
     const keys = [...new Set(result.error.issues.map((i) => i.path.join('.')))].join(', ');
     throw new AppError('CONFIG_INVALID', `Invalid configuration: ${keys}`);
+  }
+  if (result.data.AI_PROVIDER === 'fake' && result.data.APP_ENV !== 'local') {
+    throw new AppError('CONFIG_INVALID', 'Invalid configuration: AI_PROVIDER=fake is only allowed locally');
   }
   return result.data;
 }

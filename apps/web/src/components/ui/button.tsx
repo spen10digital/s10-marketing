@@ -6,9 +6,9 @@ import { useFormStatus } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 const variants = {
-  primary: 'bg-primary text-primary-foreground hover:opacity-90',
-  secondary: 'border border-border bg-card hover:bg-muted',
-  ghost: 'hover:bg-muted',
+  primary: 'bg-accent-fill text-accent-text hover:bg-accent-hover',
+  secondary: 'border border-border bg-surface-raised hover:bg-surface-sunken',
+  ghost: 'hover:bg-surface-sunken',
 } as const;
 
 export type ButtonVariant = keyof typeof variants;

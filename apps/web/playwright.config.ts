@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { defineConfig, devices } from '@playwright/test';
 
 const port = Number(process.env.E2E_PORT ?? 3100);
@@ -19,6 +20,14 @@ export default defineConfig({
         url: `${baseURL}/api/health`,
         reuseExistingServer: !process.env.CI,
         timeout: 240_000,
-        env: { APP_ENV: 'local' },
+        // Throwaway, non-secret test values: sign-in is configured (so signed-out redirects work) but points nowhere.
+        env: {
+          APP_ENV: 'local',
+          SUITE_URL: 'http://localhost:9',
+          COGNITO_USER_POOL_ID: 'us-east-2_E2ETEST',
+          COGNITO_CLIENT_ID: 'e2e-test-client',
+          COGNITO_DOMAIN: 'e2e-test.auth.us-east-2.amazoncognito.com',
+          SUITE_SESSION_SECRET: randomBytes(32).toString('base64url'),
+        },
       },
 });

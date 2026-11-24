@@ -74,6 +74,18 @@ Phase 5  ░░░░░░░░ Expansion (ongoing)
 - **Tests:** unit tests with `FakeAiProvider` and `aws-sdk-client-mock`; prompt snapshot tests; manual `pnpm eval:ai`.
 - **Security:** IAM allows `bedrock:InvokeModel`/`Converse` only for the configured model/profile ARNs; no secrets/PII in prompts; model has no tools.
 - **Note:** unassigned drafts use `posts.target_id = null` (ADR).
+- **Added 2026-11-03 (owner): Brand Voice assistant.** On the brand page, the AI helps set up and tune the voice profile:
+  1. **Draft from website:** the user enters the brand's site. The app reads the home page plus up to 4 same-site pages (About, recent posts) and drafts every voice field from what it finds.
+  2. **Guided setup:** a few questions (who it's for, how it should sound, words to avoid, example posts) turned into a draft.
+  3. **Tune:** reviews the current profile and gives specific suggestions, each one accepted or dismissed individually.
+  4. **Try it:** writes 2–3 sample posts in the current voice so the effect is visible before saving.
+
+  AI output is always a **proposal** shown against the current version. Nothing is saved until the user saves, which creates a normal new version. Generation uses Sonnet 5.5, sample posts use Haiku 5.5, and both count toward the org's AI budget.
+  - **Pulled forward from M2.3:** the SSRF-safe fetcher (`packages/core/src/sources/safe-fetch.ts`, rules in 02 §8): https/http only, private and loopback addresses blocked after DNS resolution, at most 3 redirects (each re-checked), 10 s timeout, 2 MB cap, `robots.txt` respected, HTML reduced to text.
+  - **Security:** website text is untrusted. It goes into the prompt as clearly delimited data and must never change instructions (prompt-injection fixture). The model has no tools, and fetched text is kept only as a short excerpt next to the generation record.
+  - **Tests:** safe-fetch SSRF tests (private IPs, redirects into private ranges, oversized and slow responses); voice-draft output validated against `brandVoiceInput`; an injection fixture with a page saying "ignore previous instructions".
+- **As built (2026-11-03):** streaming goes through one route, `POST /api/ai/stream` (NDJSON), with Claude structured outputs (ADR 0017). Budgets are reserved before each call under a per-org lock (ADR 0016). Defaults: $10/month, 100 AI calls/day and 20 website reads/day per org, overridable in `org_entitlements`. Drafts are saved unassigned (ADR 0018). No `AnthropicDirectProvider` and no Bedrock Guardrails yet. `AI_PROVIDER=fake` serves canned answers for local development.
+- **As built (2026-11-03):** streaming goes through one route, `POST /api/ai/stream` (NDJSON), with Claude structured outputs (ADR 0017). Budgets are reserved before each call under a per-org lock (ADR 0016). Defaults: $10/month, 100 AI calls/day, 20 website reads/day per org, overridable in `org_entitlements`. No `AnthropicDirectProvider` and no Bedrock Guardrails yet. `AI_PROVIDER=fake` serves canned answers for local development.
 
 ### M1.4 Facebook Page connection
 - **Goal:** connect/disconnect Pages securely and map them to brands.

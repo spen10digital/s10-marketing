@@ -27,6 +27,11 @@ export interface EnvConfig {
   appUrls: string[];
   /** Aurora Serverless v2 capacity range (ACU). Min 0 lets the cluster pause when idle. */
   dbCapacity: { min: number; max: number };
+  /**
+   * Bedrock models (US cross-Region inference profiles; confirm the IDs in the Bedrock console)
+   * and the default monthly AI budget per organization (orgs can differ via org_entitlements).
+   */
+  ai: { generateModel: string; fastModel: string; defaultMonthlyBudgetUsd: number };
 }
 
 const base = {
@@ -34,6 +39,13 @@ const base = {
   budgetThresholdsUsd: [25, 75, 150],
   vercelProject: 's10-marketing',
 } as const;
+
+// Claude Sonnet 5.5 for generation, Claude Haiku 5.5 for quick edits (price/performance pick).
+const ai = {
+  generateModel: 'us.anthropic.claude-sonnet-5-5',
+  fastModel: 'us.anthropic.claude-haiku-5-5',
+  defaultMonthlyBudgetUsd: 10,
+};
 
 export const ENVIRONMENTS: Record<EnvName, Omit<EnvConfig, 'alertEmail' | 'githubRepo' | 'vercelTeam'>> = {
   dev: {
@@ -43,6 +55,7 @@ export const ENVIRONMENTS: Record<EnvName, Omit<EnvConfig, 'alertEmail' | 'githu
     // The `develop` branch alias on Vercel (<project>-git-<branch>-<team>.vercel.app) and local dev.
     appUrls: ['https://s10-marketing-git-develop-spen-10-digital.vercel.app', 'http://localhost:3000'],
     dbCapacity: { min: 0, max: 4 },
+    ai: { ...ai },
   },
   // Prod sign-in waits for the production domain (--context appUrls=https://…).
   prod: {
@@ -51,6 +64,7 @@ export const ENVIRONMENTS: Record<EnvName, Omit<EnvConfig, 'alertEmail' | 'githu
     envName: 'prod',
     appUrls: [],
     dbCapacity: { min: 0, max: 4 },
+    ai: { ...ai },
   },
 };
 
@@ -93,6 +107,9 @@ export function resolveEnvConfig(context: {
     vercelTeam,
   };
 }
+
+/** Regions a US cross-Region inference profile may route to (the foundation-model ARNs it needs). */
+export const US_INFERENCE_REGIONS = ['us-east-1', 'us-east-2', 'us-west-2'] as const;
 
 /** Parameter Store prefix read by `packages/core/src/config/params.ts`. */
 export const paramPrefix = (env: EnvName) => `/s10-marketing/${env}`;

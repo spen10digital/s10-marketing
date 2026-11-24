@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "regions": ["cle1"],
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "installCommand": "cd ../.. && pnpm config set \"//npm.pkg.github.com/:_authToken\" \"$NPM_TOKEN\" --location=user && pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build"
 }
